@@ -244,6 +244,11 @@ int Server::mulligansRemaining() const
     return mulligansRemaining_;
 }
 
+int Server::cardsRemainingInDeck() const
+{
+    return deck_.size();
+}
+
 Card Server::pleaseDiscard(int index)
 {
     assert(0 <= activePlayer_ && activePlayer_ < hands_.size());
@@ -372,6 +377,7 @@ void Server::pleaseGiveColorHint(int to, Color color)
     if (activePlayerHasMoved_) throw std::runtime_error("bot attempted to move twice");
     if (to < 0 || hands_.size() <= to) throw std::runtime_error("invalid player index");
     if (color < RED || BLUE < color) throw std::runtime_error("invalid color");
+    if (hintStonesRemaining_ == 0) throw std::runtime_error("no hint stones remaining");
 
     std::vector<int> card_indices;
     for (int i=0; i < hands_[to].size(); ++i) {
@@ -404,6 +410,7 @@ void Server::pleaseGiveColorHint(int to, Color color)
     }
     observingPlayer_ = oldObservingPlayer;
 
+    hintStonesRemaining_ -= 1;
     activePlayerHasMoved_ = true;
 }
 
@@ -414,6 +421,7 @@ void Server::pleaseGiveValueHint(int to, Value value)
     if (activePlayerHasMoved_) throw std::runtime_error("bot attempted to move twice");
     if (to < 0 || players_.size() <= to) throw std::runtime_error("invalid player index");
     if (value <= 0 || 5 < value) throw std::runtime_error("invalid value");
+    if (hintStonesRemaining_ == 0) throw std::runtime_error("no hint stones remaining");
 
     std::vector<int> card_indices;
     for (int i=0; i < hands_[to].size(); ++i) {
@@ -447,6 +455,7 @@ void Server::pleaseGiveValueHint(int to, Value value)
     }
     observingPlayer_ = oldObservingPlayer;
 
+    hintStonesRemaining_ -= 1;
     activePlayerHasMoved_ = true;
 }
 

@@ -146,7 +146,7 @@ void SimpleBot::pleaseMakeMove(Server &server)
         }
     }
     
-    if (server.mulligansRemaining() > 0) {
+    if (server.hintStonesRemaining() > 0) {
         const int numPlayers = handKnowledge_.size();
         int best_so_far = 0;
         int player_to_hint = -1;
@@ -238,7 +238,7 @@ void SimpleBot::pleaseMakeMove(Server &server)
         }
     }
 
-    /* We couldn't find a good hint to give, or else we're out of mulligans.
+    /* We couldn't find a good hint to give, or else we're out of hint-stones.
      * Discard a card. */
     server.pleaseDiscard(0);
     this->invalidateKnol(me_, 0);

@@ -26,6 +26,11 @@ typedef enum { ONE=1, TWO, THREE, FOUR, FIVE } Value;
 const int NUMHINTS = 7;
 const int NUMMULLIGANS = 3;
 
+inline Color &operator++ (Color &c) { c = Color((int)c+1); return c; }
+inline Color operator++ (Color &c, int) { Color oc = c; ++c; return oc; }
+inline Value &operator++ (Value &v) { v = Value((int)v+1); return v; }
+inline Value operator++ (Value &v, int) { Value ov = v; ++v; return ov; }
+
 struct Card {
     Color color;
     Value value;
@@ -93,6 +98,9 @@ struct Server {
      * These two numbers always sum to NUMMULLIGANS. */
     int mulligansUsed() const;
     int mulligansRemaining() const;
+
+    /* Returns the number of cards remaining to be drawn. */
+    int cardsRemainingInDeck() const;
 
     /* Returns TRUE if no more calls to pleaseMakeMove()
      * can be made during this game. */
