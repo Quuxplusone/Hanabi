@@ -25,12 +25,7 @@ class SimpleBot : public Hanabi::Bot {
     /* What does each player know about his own hand? */
     std::vector<std::vector<CardKnowledge> > handKnowledge_;
 
-    /* Sneaky tricks to deal with the lack of notifications about our own play. */
-    bool needsToPostObserve_;
-    Hanabi::Pile postObservedPiles_[Hanabi::NUMCOLORS];
-
     void invalidateKnol(int player_index, int card_index);
-    void prepareToPostObserve(const Hanabi::Server &server);
     void wipeOutPlayables(const Hanabi::Card &played_card);
 
   public:

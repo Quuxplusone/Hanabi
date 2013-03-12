@@ -57,7 +57,6 @@ void SimpleBot::invalidateKnol(int player_index, int card_index)
 void SimpleBot::pleaseObserveBeforeMove(const Server &server)
 {
     assert(server.whoAmI() == me_);
-    this->needsToPostObserve_ = false;
 }
 
 void SimpleBot::pleaseObserveBeforeDiscard(const Hanabi::Server &server, int from, int card_index)
@@ -108,39 +107,9 @@ void SimpleBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, i
     }
 }
 
-void SimpleBot::prepareToPostObserve(const Hanabi::Server &server)
-{
-    assert(server.whoAmI() == me_);
-    assert(server.activePlayer() == me_);
-
-    for (Color color = RED; color <= BLUE; ++color) {
-        this->postObservedPiles_[color] = server.pileOf(color);
-    }
-    this->needsToPostObserve_ = true;
-}
-
 void SimpleBot::pleaseObserveAfterMove(const Hanabi::Server &server)
 {
-    if (!needsToPostObserve_) return;
-
     assert(server.whoAmI() == me_);
-    assert(server.activePlayer() == me_);
-
-    bool foundModifiedPile = false;
-    for (Color color = RED; color <= BLUE; ++color) {
-        Pile &original = this->postObservedPiles_[color];
-        Pile modified = server.pileOf(color);
-
-        if (modified.empty()) continue;
-        if (original.nextValueIs(modified.topCard().value)) {
-            /* This pile was added to by our move! */
-            assert(!foundModifiedPile);
-            this->wipeOutPlayables(modified.topCard());
-            foundModifiedPile = true;
-        }
-    }
-
-    this->needsToPostObserve_ = false;
 }
 
 void SimpleBot::wipeOutPlayables(const Card &played_card)
@@ -170,9 +139,9 @@ void SimpleBot::pleaseMakeMove(Server &server)
 
     for (int i=0; i < 4; ++i) {
         if (handKnowledge_[me_][i].isPlayable) {
-            this->prepareToPostObserve(server);
+            Card playedCard = server.pleasePlay(i);
             this->invalidateKnol(me_, i);
-            server.pleasePlay(i);
+            this->wipeOutPlayables(playedCard);
             return;
         }
     }
@@ -274,4 +243,3 @@ void SimpleBot::pleaseMakeMove(Server &server)
     server.pleaseDiscard(0);
     this->invalidateKnol(me_, 0);
 }
-

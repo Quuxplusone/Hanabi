@@ -244,7 +244,7 @@ int Server::mulligansRemaining() const
     return mulligansRemaining_;
 }
 
-void Server::pleaseDiscard(int index)
+Card Server::pleaseDiscard(int index)
 {
     assert(0 <= activePlayer_ && activePlayer_ < hands_.size());
     if (activePlayerHasMoved_) throw std::runtime_error("bot attempted to move twice");
@@ -260,8 +260,8 @@ void Server::pleaseDiscard(int index)
     observingPlayer_ = oldObservingPlayer;
 
     /* Discard the selected card. */
-    Card card = hands_[activePlayer_][index];
-    discards_.push_back(card);
+    Card discardedCard = hands_[activePlayer_][index];
+    discards_.push_back(discardedCard);
 
     /* Shift the old cards down, and draw a replacement. */
     for (int i = index; i+1 < hands_[activePlayer_].size(); ++i) {
@@ -282,7 +282,7 @@ void Server::pleaseDiscard(int index)
     if (log_) {
         (*log_) << "Player " << activePlayer_
                 << " discarded his " << nth(index)
-                << " card (" << card.toString() << ").\n";
+                << " card (" << discardedCard.toString() << ").\n";
         (*log_) << "Player " << activePlayer_
                 << " drew a replacement (" << replacementCard.toString() << ").\n";
         if (regainedHintStone) {
@@ -292,9 +292,11 @@ void Server::pleaseDiscard(int index)
                     << hintStonesRemaining_ << " remaining.\n";
         }
     }
+
+    return discardedCard;
 }
 
-bool Server::pleasePlay(int index)
+Card Server::pleasePlay(int index)
 {
     assert(0 <= activePlayer_ && activePlayer_ < hands_.size());
     assert(players_.size() == hands_.size());
@@ -311,17 +313,16 @@ bool Server::pleasePlay(int index)
     observingPlayer_ = oldObservingPlayer;
 
     /* Examine the selected card. */
-    Card card = hands_[activePlayer_][index];
-    Pile &pile = piles_[(int)card.color];
+    Card selectedCard = hands_[activePlayer_][index];
+    Pile &pile = piles_[(int)selectedCard.color];
     bool success = false;
 
-    if (card.value == pile.value+1) {
-        /* This includes the case (pile.empty() && card.value==1). */
+    if (pile.nextValueIs(selectedCard.value)) {
         pile.increment_();
         success = true;
     } else {
         /* The card was unplayable! */
-        discards_.push_back(card);
+        discards_.push_back(selectedCard);
         --mulligansRemaining_;
         assert(mulligansRemaining_ >= 0);
     }
@@ -339,13 +340,13 @@ bool Server::pleasePlay(int index)
         if (success) {
             (*log_) << "Player " << activePlayer_
                     << " played his " << nth(index)
-                    << " card (" << card.toString() << ").\n";
+                    << " card (" << selectedCard.toString() << ").\n";
         } else {
             const bool one = (mulligansRemaining_ == 1);
             const bool none = (mulligansRemaining_ == 0);
             (*log_) << "Player " << activePlayer_
                     << " tried to play his " << nth(index)
-                    << " card (" << card.toString() << ")"
+                    << " card (" << selectedCard.toString() << ")"
                     << " but failed.\n";
             if (mulligansRemaining_ == 0) {
                 (*log_) << "That was the last mulligan.\n";
@@ -361,7 +362,7 @@ bool Server::pleasePlay(int index)
         }
     }
 
-    return success;
+    return selectedCard;
 }
 
 void Server::pleaseGiveColorHint(int to, Color color)

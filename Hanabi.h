@@ -108,16 +108,21 @@ struct Server {
      * the active player's hand. This action invariably
      * succeeds. The other cards will be shifted down
      * (toward index 0) and a new card drawn into index 3.
-     * Adds a hint-stone back to the pool, if possible. */
-    void pleaseDiscard(int index);
+     * Adds a hint-stone back to the pool, if possible.
+     * Returns the identity of the discarded card.
+     */
+    Card pleaseDiscard(int index);
 
     /* Try to play the card at the given index. This action
      * may succeed (incrementing the appropriate pile) or fail
      * (adding the selected card to the end of srv.discards()).
      * In either case, the other cards will be shifted down
      * and a new card drawn into index 3.
-     * Returns TRUE on success and FALSE on failure. */
-    bool pleasePlay(int index);
+     * Returns the identity of the played/discarded card.
+     * If you want to know whether the play was successful,
+     * just examine server.mulligansRemaining() before and
+     * after the play. */
+    Card pleasePlay(int index);
 
     /* Give a hint. The named player (who must not be the
      * active player) must have at least one card of the
