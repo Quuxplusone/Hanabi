@@ -62,25 +62,19 @@ void SimpleBot::pleaseObserveBeforeMove(const Server &server)
 void SimpleBot::pleaseObserveBeforeDiscard(const Hanabi::Server &server, int from, int card_index)
 {
     assert(server.whoAmI() == me_);
-    assert(server.activePlayer() != me_);
     this->invalidateKnol(from, card_index);
 }
 
 void SimpleBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, int card_index)
 {
     assert(server.whoAmI() == me_);
-    assert(server.activePlayer() != me_);
-
     this->invalidateKnol(from, card_index);
-
-    Card card = server.handOfPlayer(from)[card_index];
-    this->wipeOutPlayables(card);
+    this->wipeOutPlayables(server.activeCard());
 }
 
 void SimpleBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, int to, Color color, const std::vector<int> &card_indices)
 {
     assert(server.whoAmI() == me_);
-    assert(server.activePlayer() != me_);
 
     /* Someone has given P a color hint. Using SimpleBot's strategy,
      * this means that all the named cards are playable. */
@@ -95,7 +89,6 @@ void SimpleBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, i
 void SimpleBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, int to, Value value, const std::vector<int> &card_indices)
 {
     assert(server.whoAmI() == me_);
-    assert(server.activePlayer() != me_);
 
     /* Someone has given P a value hint. Using SimpleBot's strategy,
      * this means that all the named cards are playable. */
@@ -139,9 +132,7 @@ void SimpleBot::pleaseMakeMove(Server &server)
 
     for (int i=0; i < 4; ++i) {
         if (handKnowledge_[me_][i].isPlayable) {
-            Card playedCard = server.pleasePlay(i);
-            this->invalidateKnol(me_, i);
-            this->wipeOutPlayables(playedCard);
+            server.pleasePlay(i);
             return;
         }
     }
@@ -212,19 +203,6 @@ void SimpleBot::pleaseMakeMove(Server &server)
         }
 
         if (best_so_far != 0) {
-            /* Update our knowledge, since we won't get a callback from the server. */
-            const std::vector<Card> partners_hand = server.handOfPlayer(player_to_hint);
-            std::vector<CardKnowledge> &knol = handKnowledge_[player_to_hint];
-            for (int c=0; c < 4; ++c) {
-                if (color_to_hint != -1 && partners_hand[c].color == color_to_hint) {
-                    knol[c].setMustBe(Color(color_to_hint));
-                    knol[c].isPlayable = true;
-                } else if (value_to_hint != -1 && partners_hand[c].value == value_to_hint) {
-                    knol[c].setMustBe(Value(value_to_hint));
-                    knol[c].isPlayable = true;
-                }
-            }
-
             /* Give the hint. */
             if (color_to_hint != -1) {
                 server.pleaseGiveColorHint(player_to_hint, Color(color_to_hint));
@@ -241,5 +219,4 @@ void SimpleBot::pleaseMakeMove(Server &server)
     /* We couldn't find a good hint to give, or else we're out of hint-stones.
      * Discard a card. */
     server.pleaseDiscard(0);
-    this->invalidateKnol(me_, 0);
 }

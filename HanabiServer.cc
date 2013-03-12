@@ -92,10 +92,11 @@ void Pile::increment_()
     ++value;
 }
 
-Bot::~Bot()
-{
-    /* virtual destructor */
-}
+/* virtual destructor */
+Bot::~Bot() { }
+
+/* Hanabi::Card has no default constructor */
+Server::Server(): activeCard_(RED,1) { }
 
 bool Server::gameOver() const
 {
@@ -163,6 +164,7 @@ int Server::runGame(const BotFactory &botFactory, int numPlayers)
     }
 
     /* Run the game. */
+    activeCardIsObservable_ = false;
     activePlayer_ = 0;
     while (!this->gameOver()) {
         activePlayerHasMoved_ = false;
@@ -206,6 +208,12 @@ std::vector<Card> Server::handOfPlayer(int player) const
     if (player == observingPlayer_) throw std::runtime_error("cannot observe own hand");
     if (player < 0 || hands_.size() <= player) throw std::runtime_error("player index out of bounds");
     return hands_[player];
+}
+
+Card Server::activeCard() const
+{
+    if (!activeCardIsObservable_) throw std::runtime_error("called activeCard() from the wrong observer");
+    return activeCard_;
 }
 
 Pile Server::pileOf(Color color) const
@@ -255,17 +263,20 @@ Card Server::pleaseDiscard(int index)
     if (activePlayerHasMoved_) throw std::runtime_error("bot attempted to move twice");
     if (index < 0 || hands_[activePlayer_].size() <= index) throw std::runtime_error("invalid card index");
 
+    Card discardedCard = hands_[activePlayer_][index];
+    activeCard_ = discardedCard;
+    activeCardIsObservable_ = true;
+
     /* Notify all the players of the discard (before it happens). */
     int oldObservingPlayer = observingPlayer_;
     for (int i=0; i < players_.size(); ++i) {
-        if (i == activePlayer_) continue;
         observingPlayer_ = i;
         players_[i]->pleaseObserveBeforeDiscard(*this, activePlayer_, index);
     }
     observingPlayer_ = oldObservingPlayer;
+    activeCardIsObservable_ = false;
 
     /* Discard the selected card. */
-    Card discardedCard = hands_[activePlayer_][index];
     discards_.push_back(discardedCard);
 
     /* Shift the old cards down, and draw a replacement. */
@@ -308,17 +319,20 @@ Card Server::pleasePlay(int index)
     if (activePlayerHasMoved_) throw std::runtime_error("bot attempted to move twice");
     if (index < 0 || hands_[activePlayer_].size() <= index) throw std::runtime_error("invalid card index");
 
+    Card selectedCard = hands_[activePlayer_][index];
+    activeCard_ = selectedCard;
+    activeCardIsObservable_ = true;
+
     /* Notify all the players of the attempted play (before it happens). */
     int oldObservingPlayer = observingPlayer_;
     for (int i=0; i < players_.size(); ++i) {
-        if (i == activePlayer_) continue;
         observingPlayer_ = i;
         players_[i]->pleaseObserveBeforePlay(*this, activePlayer_, index);
     }
     observingPlayer_ = oldObservingPlayer;
+    activeCardIsObservable_ = false;
 
     /* Examine the selected card. */
-    Card selectedCard = hands_[activePlayer_][index];
     Pile &pile = piles_[(int)selectedCard.color];
     bool success = false;
 
@@ -404,7 +418,6 @@ void Server::pleaseGiveColorHint(int to, Color color)
     /* Notify all the players of the given hint. */
     int oldObservingPlayer = observingPlayer_;
     for (int i=0; i < players_.size(); ++i) {
-        if (i == activePlayer_) continue;
         observingPlayer_ = i;
         players_[i]->pleaseObserveColorHint(*this, activePlayer_, to, color, card_indices);
     }
@@ -449,7 +462,6 @@ void Server::pleaseGiveValueHint(int to, Value value)
     /* Notify all the players of the given hint. */
     int oldObservingPlayer = observingPlayer_;
     for (int i=0; i < players_.size(); ++i) {
-        if (i == activePlayer_) continue;
         observingPlayer_ = i;
         players_[i]->pleaseObserveValueHint(*this, activePlayer_, to, value, card_indices);
     }

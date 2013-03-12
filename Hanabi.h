@@ -54,6 +54,8 @@ class Pile {
 
 struct Server {
 
+    Server();
+
     /* Set up logging, for debuggability and amusement. */
     void setLog(std::ostream *logStream);
 
@@ -73,8 +75,15 @@ struct Server {
 
     /* Returns a vector of the cards in some player's hand.
      * Throws an exception if a player tries to look at his own hand,
-     * i.e., srv.handOfPlayer(srv.whoAmI()). */
+     * i.e., server.handOfPlayer(server.whoAmI()). */
     std::vector<Card> handOfPlayer(int player) const;
+
+    /* Returns the card about to be played or discarded. This allows
+     * the active player to observe his own play from within
+     * Bot::pleaseObservePlay() or Bot::pleaseObserveDiscard().
+     * Throws an exception if called from anywhere that is not either
+     * of those functions. */
+    Card activeCard() const;
 
     /* Observe the pile of the given color. */
     Pile pileOf(Color color) const;
@@ -123,7 +132,7 @@ struct Server {
 
     /* Try to play the card at the given index. This action
      * may succeed (incrementing the appropriate pile) or fail
-     * (adding the selected card to the end of srv.discards()).
+     * (adding the selected card to the end of server.discards()).
      * In either case, the other cards will be shifted down
      * and a new card drawn into index 3.
      * Returns the identity of the played/discarded card.
@@ -152,6 +161,8 @@ private:
     int observingPlayer_;
     int activePlayer_;
     bool activePlayerHasMoved_;
+    Card activeCard_;
+    bool activeCardIsObservable_;
     /* Basically-public state */
     Pile piles_[NUMCOLORS];
     std::vector<Card> discards_;
