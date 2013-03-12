@@ -178,8 +178,8 @@ struct Bot {
     virtual void pleaseMakeMove(Server &) = 0;
       virtual void pleaseObserveBeforeDiscard(const Server &, int from, int card_index) = 0;
       virtual void pleaseObserveBeforePlay(const Server &, int from, int card_index) = 0;
-      virtual void pleaseObserveColorHint(const Server &, int from, int to, Color color, std::vector<int> card_indices) = 0;
-      virtual void pleaseObserveValueHint(const Server &, int from, int to, Value value, std::vector<int> card_indices) = 0;
+      virtual void pleaseObserveColorHint(const Server &, int from, int to, Color color, const std::vector<int> &card_indices) = 0;
+      virtual void pleaseObserveValueHint(const Server &, int from, int to, Value value, const std::vector<int> &card_indices) = 0;
     virtual void pleaseObserveAfterMove(const Server &) = 0;
 };
 

@@ -77,7 +77,7 @@ void SimpleBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, 
     this->wipeOutPlayables(card);
 }
 
-void SimpleBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, int to, Color color, std::vector<int> card_indices)
+void SimpleBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, int to, Color color, const std::vector<int> &card_indices)
 {
     assert(server.whoAmI() == me_);
     assert(server.activePlayer() != me_);
@@ -92,7 +92,7 @@ void SimpleBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, i
     }
 }
 
-void SimpleBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, int to, Value value, std::vector<int> card_indices)
+void SimpleBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, int to, Value value, const std::vector<int> &card_indices)
 {
     assert(server.whoAmI() == me_);
     assert(server.activePlayer() != me_);
