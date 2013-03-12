@@ -1,0 +1,11 @@
+This is a framework for writing bots that play Hanabi.
+http://boardgamegeek.com/boardgame/98778/hanabi
+
+It is very much a work in progress.
+
+Try one of these command lines:
+
+clang++ *.cc -g -DBOTNAME=BlindBot
+  (blindly plays a random card each time: avg score 1.25)
+clang++ *.cc -g -DBOTNAME=SimpleBot
+  (hints about playable cards: avg score 18.5)
