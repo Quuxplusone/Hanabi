@@ -6,6 +6,8 @@ struct CardKnowledge {
 
     bool mustBe(Hanabi::Color color) const;
     bool mustBe(Hanabi::Value value) const;
+    bool cannotBe(Hanabi::Color color) const;
+    bool cannotBe(Hanabi::Value value) const;
 
     void setMustBe(Hanabi::Color color);
     void setMustBe(Hanabi::Value value);

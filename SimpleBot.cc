@@ -20,17 +20,23 @@ CardKnowledge::CardKnowledge()
 
 bool CardKnowledge::mustBe(Hanabi::Color color) const { return (colors_[color] == YES); }
 bool CardKnowledge::mustBe(Hanabi::Value value) const { return (values_[value] == YES); }
+bool CardKnowledge::cannotBe(Hanabi::Color color) const { return (colors_[color] == NO); }
+bool CardKnowledge::cannotBe(Hanabi::Value value) const { return (values_[value] == NO); }
 
 void CardKnowledge::setMustBe(Hanabi::Color color)
 {
     assert(colors_[color] != NO);
-    colors_[color] = YES;
+    for (Color k = RED; k <= BLUE; ++k) {
+        colors_[k] = ((k == color) ? YES : NO);
+    }
 }
 
 void CardKnowledge::setMustBe(Hanabi::Value value)
 {
     assert(values_[value] != NO);
-    values_[value] = YES;
+    for (int v = 1; v <= 5; ++v) {
+        values_[v] = ((v == value) ? YES : NO);
+    }
 }
 
 
@@ -79,9 +85,15 @@ void SimpleBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, i
     /* Someone has given P a color hint. Using SimpleBot's strategy,
      * this means that all the named cards are playable. */
 
+    Pile pile = server.pileOf(color);
+    int value = pile.empty() ? 1 : pile.topCard().value+1;
+
+    assert(1 <= value && value <= 5);
+
     for (int i=0; i < card_indices.size(); ++i) {
         CardKnowledge &knol = handKnowledge_[to][card_indices[i]];
         knol.setMustBe(color);
+        knol.setMustBe(Value(value));
         knol.isPlayable = true;
     }
 }
@@ -113,10 +125,10 @@ void SimpleBot::wipeOutPlayables(const Card &played_card)
             CardKnowledge &knol = handKnowledge_[player][c];
             if (!knol.isPlayable) continue;
             if (knol.mustBe(Value(5))) continue;
-            if (knol.mustBe(played_card.color) || knol.mustBe(played_card.value)) {
-                /* This card might or might not be playable, anymore. */
-                knol.isPlayable = false;
-            }
+            if (knol.cannotBe(played_card.color)) continue;
+            if (knol.cannotBe(played_card.value)) continue;
+            /* This card might or might not be playable, anymore. */
+            knol.isPlayable = false;
         }
     }
 }
