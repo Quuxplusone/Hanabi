@@ -8,22 +8,6 @@
 
 using namespace Hanabi;
 
-static Value lowestPlayableValue(const Server &server)
-{
-    int lowestPile = 5;
-    for (Color k = RED; k <= BLUE; ++k) {
-        Pile pile = server.pileOf(k);
-        if (pile.empty()) {
-            lowestPile = 0;
-            break;
-        } else {
-            lowestPile = std::min<int>(lowestPile, pile.topCard().value);
-        }
-    }
-    assert(lowestPile < 5);  /* otherwise the game would be over */
-    return Value(lowestPile+1);
-}
-
 template<typename T>
 static bool vector_contains(const std::vector<T> &vec, T value)
 {
@@ -52,8 +36,8 @@ bool CardKnowledge::cannotBe(Hanabi::Value value) const { return (values_[value]
 
 int CardKnowledge::value() const
 {
-    for (int i=1; i <= 5; ++i) {
-        if (this->mustBe(Value(i))) return i;
+    for (int v = 1; v <= 5; ++v) {
+        if (this->mustBe(Value(v))) return v;
     }
     assert(false);
 }
@@ -106,6 +90,18 @@ ValueBot::ValueBot(int index, int numPlayers)
             cardCount_[k][v] = 0;
         }
     }
+}
+
+Value ValueBot::lowestPlayableValue() const
+{
+    for (int v = 1; v <= 5; ++v) {
+        for (Color k = RED; k <= BLUE; ++k) {
+            if (cardCount_[k][v] != -1) return Value(v);
+        }
+    }
+
+    /* In this case, even 5s are not playable; the game must be over! */
+    assert(false);
 }
 
 void ValueBot::invalidateKnol(int player_index, int card_index)
@@ -198,7 +194,7 @@ void ValueBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
      * Otherwise, all the named cards are playable. */
 
     const int discardIndex = this->nextDiscardIndex(to);
-    const Value lowestValue = lowestPlayableValue(server);
+    const Value lowestValue = lowestPlayableValue();
     const bool isPointless = (value < lowestValue);
     const bool isWarning = (value > lowestValue) && vector_contains(card_indices, discardIndex);
 
@@ -356,10 +352,10 @@ bool ValueBot::maybeGiveValuableWarning(Server &server)
     }
 
     /* Otherwise, we'll have to give a warning. */
-    if (targetCard.value == lowestPlayableValue(server)) {
+    if (targetCard.value == lowestPlayableValue()) {
         assert(server.pileOf(targetCard.color).nextValueIs(targetCard.value));
     } else {
-        assert(targetCard.value > lowestPlayableValue(server));
+        assert(targetCard.value > lowestPlayableValue());
     }
 
     server.pleaseGiveValueHint(player_to_warn, targetCard.value);
