@@ -44,6 +44,8 @@ class ValueBot : public Hanabi::Bot {
     /* Returns the lowest value of card that is currently playable. */
     Hanabi::Value lowestPlayableValue() const;
 
+    bool couldBeValuable(int value) const;
+
     void invalidateKnol(int player_index, int card_index);
     void seePublicCard(const Hanabi::Card &played_card);
     void wipeOutPlayables(const Hanabi::Card &played_card);

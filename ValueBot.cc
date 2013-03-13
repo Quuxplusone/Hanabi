@@ -104,6 +104,16 @@ Value ValueBot::lowestPlayableValue() const
     assert(false);
 }
 
+bool ValueBot::couldBeValuable(int value) const
+{
+    if (value < 1 || 5 < value) return false;
+    for (Color k = RED; k <= BLUE; ++k) {
+        if (cardCount_[k][value] == Card(k,value).count()-1)
+            return true;
+    }
+    return false;
+}
+
 void ValueBot::invalidateKnol(int player_index, int card_index)
 {
     /* The other cards are shifted down and a new one drawn at the end. */
@@ -198,7 +208,7 @@ void ValueBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
     const int discardIndex = this->nextDiscardIndex(to);
     const Value lowestValue = lowestPlayableValue();
     const bool isPointless = (value < lowestValue);
-    const bool isWarning = (value > lowestValue) && vector_contains(card_indices, discardIndex);
+    const bool isWarning = couldBeValuable(value) && vector_contains(card_indices, discardIndex);
 
     assert(!isPointless);
 
@@ -299,7 +309,16 @@ Hint ValueBot::bestHintForPlayer(const Server &server, int partner) const
         }
     }
 
+    /* Avoid giving hints that could be misinterpreted as warnings. */
+    const int discardIndex = nextDiscardIndex(partner);
+    int valueToAvoid = -1;
+    if (discardIndex != -1) {
+        valueToAvoid = partners_hand[discardIndex].value;
+        if (!couldBeValuable(valueToAvoid)) valueToAvoid = -1;
+    }
+
     for (int value = 1; value <= 5; ++value) {
+        if (value == valueToAvoid) continue;
         int information_content = 0;
         bool misinformative = false;
         for (int c=0; c < 4; ++c) {
