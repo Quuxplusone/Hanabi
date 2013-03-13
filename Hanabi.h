@@ -38,6 +38,8 @@ struct Card {
     Card(Color c, int v);
     int count() const;
     std::string toString() const;
+    bool operator== (const Card &) const;
+    bool operator!= (const Card &) const;
 };
 
 class Pile {
@@ -174,6 +176,7 @@ private:
 
     /* Private methods */
     Card draw_(void);
+    void logHands_(void);
 };
 
 }  /* namespace Hanabi */

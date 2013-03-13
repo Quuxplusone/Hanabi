@@ -65,6 +65,16 @@ std::string Card::toString() const
     return result;
 }
 
+bool Card::operator== (const Card &rhs) const
+{
+    return (this->color == rhs.color) && (this->value == rhs.value);
+}
+
+bool Card::operator!= (const Card &rhs) const
+{
+    return !(*this == rhs);
+}
+
 bool Pile::empty() const
 {
     return (value == 0);
@@ -167,6 +177,7 @@ int Server::runGame(const BotFactory &botFactory, int numPlayers)
     activeCardIsObservable_ = false;
     activePlayer_ = 0;
     while (!this->gameOver()) {
+        if (activePlayer_ == 0) this->logHands_();
         activePlayerHasMoved_ = false;
         for (int i=0; i < numPlayers; ++i) {
             observingPlayer_ = i;
@@ -477,6 +488,21 @@ Card Server::draw_()
     Card result = deck_.back();
     deck_.pop_back();
     return result;
+}
+
+void Server::logHands_()
+{
+    if (log_) {
+        (*log_) << "Current hands:";
+        for (int i=0; i < hands_.size(); ++i) {
+            assert(hands_[i].size() == 4);
+            (*log_) << " " << hands_[i][0].toString()
+                    << "," << hands_[i][1].toString()
+                    << "," << hands_[i][2].toString()
+                    << "," << hands_[i][3].toString();
+        }
+        (*log_) << "\n";
+    }
 }
 
 }  /* namespace Hanabi */
