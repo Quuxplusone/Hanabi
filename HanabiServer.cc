@@ -403,6 +403,7 @@ void Server::pleaseGiveColorHint(int to, Color color)
     if (to < 0 || hands_.size() <= to) throw std::runtime_error("invalid player index");
     if (color < RED || BLUE < color) throw std::runtime_error("invalid color");
     if (hintStonesRemaining_ == 0) throw std::runtime_error("no hint stones remaining");
+    if (to == activePlayer_) throw std::runtime_error("cannot give hint to oneself");
 
     std::vector<int> card_indices;
     for (int i=0; i < hands_[to].size(); ++i) {
@@ -446,6 +447,7 @@ void Server::pleaseGiveValueHint(int to, Value value)
     if (to < 0 || players_.size() <= to) throw std::runtime_error("invalid player index");
     if (value <= 0 || 5 < value) throw std::runtime_error("invalid value");
     if (hintStonesRemaining_ == 0) throw std::runtime_error("no hint stones remaining");
+    if (to == activePlayer_) throw std::runtime_error("cannot give hint to oneself");
 
     std::vector<int> card_indices;
     for (int i=0; i < hands_[to].size(); ++i) {
