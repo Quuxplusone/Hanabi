@@ -40,7 +40,7 @@ int CardKnowledge::value() const
     for (int v = 1; v <= 5; ++v) {
         if (this->mustBe(Value(v))) return v;
     }
-    assert(false);
+    return -1;
 }
 
 void CardKnowledge::setMustBe(Hanabi::Color color)
@@ -195,7 +195,9 @@ void ValueBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
     assert(server.whoAmI() == me_);
 
     /* Someone has given me a color hint. Using ValueBot's strategy,
-     * this means that all the named cards are playable. */
+     * this means that all the named cards are playable; except for
+     * any whose values I already know, which I can deduce for myself
+     * whether they're playable or not. */
 
     Pile pile = server.pileOf(color);
     int value = pile.empty() ? 1 : pile.topCard().value+1;
@@ -205,10 +207,19 @@ void ValueBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
     for (int i=0; i < card_indices.size(); ++i) {
         CardKnowledge &knol = handKnowledge_[to][card_indices[i]];
         knol.setMustBe(color);
-        knol.setMustBe(Value(value));
-        knol.isPlayable = true;
-        if (cardCount_[color][value] == Card(color,value).count()-1) {
-            knol.isValuable = true;
+        if (knol.value() == -1) {
+            knol.setMustBe(Value(value));
+        }
+        const int count = cardCount_[color][knol.value()];
+        if (count == -1) {
+            knol.isWorthless = true;
+        } else {
+            if (value == knol.value()) {
+                knol.isPlayable = true;
+            }
+            if (count == Card(color,knol.value()).count()-1) {
+                knol.isValuable = true;
+            }
         }
     }
 }
@@ -341,12 +352,11 @@ Hint ValueBot::bestHintForPlayer(const Server &server, int partner) const
         int information_content = 0;
         bool misinformative = false;
         for (int c=0; c < 4; ++c) {
+            const CardKnowledge &knol = handKnowledge_[partner][c];
             if (partners_hand[c].color != color) continue;
-            if (is_really_playable[c] &&
-                !handKnowledge_[partner][c].isPlayable)
-            {
+            if (is_really_playable[c] && !knol.isPlayable) {
                 information_content += 1;
-            } else if (!is_really_playable[c]) {
+            } else if (!is_really_playable[c] && (knol.value() == -1)) {
                 misinformative = true;
                 break;
             }
