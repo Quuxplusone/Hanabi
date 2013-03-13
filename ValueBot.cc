@@ -138,16 +138,18 @@ void ValueBot::pleaseObserveBeforeDiscard(const Hanabi::Server &server, int from
 void ValueBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, int card_index)
 {
     assert(server.whoAmI() == me_);
-    this->invalidateKnol(from, card_index);
 
     Card card = server.activeCard();
     if (server.pileOf(card.color).nextValueIs(card.value)) {
         /* This card is getting played, not discarded. */
-        this->wipeOutPlayables(card);
+        if (this->cardCount_[card.color][card.value] != card.count()-1) {
+            this->wipeOutPlayables(card);
+        }
         this->cardCount_[card.color][card.value] = -1;  /* we no longer care about it */
     } else {
         this->seePublicCard(card);
     }
+    this->invalidateKnol(from, card_index);
 }
 
 void ValueBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, int to, Color color, const std::vector<int> &card_indices)
