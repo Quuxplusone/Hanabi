@@ -28,6 +28,9 @@ class SimpleBot : public Hanabi::Bot {
     void invalidateKnol(int player_index, int card_index);
     void wipeOutPlayables(const Hanabi::Card &played_card);
 
+    bool maybePlayAPlayableCard(Hanabi::Server &server);
+    bool maybeGiveHelpfulHint(Hanabi::Server &server);
+
   public:
     SimpleBot(int index, int numPlayers);
     virtual void pleaseObserveBeforeMove(const Hanabi::Server &);

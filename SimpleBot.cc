@@ -121,6 +121,100 @@ void SimpleBot::wipeOutPlayables(const Card &played_card)
     }
 }
 
+bool SimpleBot::maybePlayAPlayableCard(Server &server)
+{
+    for (int i=0; i < 4; ++i) {
+        if (handKnowledge_[me_][i].isPlayable) {
+            server.pleasePlay(i);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool SimpleBot::maybeGiveHelpfulHint(Server &server)
+{
+    if (server.hintStonesRemaining() == 0) return false;
+
+    const int numPlayers = handKnowledge_.size();
+    int best_so_far = 0;
+    int player_to_hint = -1;
+    int color_to_hint = -1;
+    int value_to_hint = -1;
+    for (int i = 1; i < numPlayers; ++i) {
+        const int partner = (me_ + i) % numPlayers;
+        assert(partner != me_);
+        const std::vector<Card> partners_hand = server.handOfPlayer(partner);
+        bool is_really_playable[4];
+        for (int c=0; c < 4; ++c) {
+            is_really_playable[c] =
+                server.pileOf(partners_hand[c].color).nextValueIs(partners_hand[c].value);
+        }
+        /* Can we construct a color hint that gives our partner information
+         * about unknown-playable cards, without also including any
+         * unplayable cards? */
+        for (Color color = RED; color <= BLUE; ++color) {
+            int information_content = 0;
+            bool misinformative = false;
+            for (int c=0; c < 4; ++c) {
+                if (partners_hand[c].color != color) continue;
+                if (is_really_playable[c] &&
+                    !handKnowledge_[partner][c].isPlayable)
+                {
+                    information_content += 1;
+                } else if (!is_really_playable[c]) {
+                    misinformative = true;
+                    break;
+                }
+            }
+            if (misinformative) continue;
+            if (information_content > best_so_far) {
+                best_so_far = information_content;
+                color_to_hint = color;
+                value_to_hint = -1;
+                player_to_hint = partner;
+            }
+        }
+
+        for (int value = 1; value <= 5; ++value) {
+            int information_content = 0;
+            bool misinformative = false;
+            for (int c=0; c < 4; ++c) {
+                if (partners_hand[c].value != value) continue;
+                if (is_really_playable[c] &&
+                    !handKnowledge_[partner][c].isPlayable)
+                {
+                    information_content += 1;
+                } else if (!is_really_playable[c]) {
+                    misinformative = true;
+                    break;
+                }
+            }
+            if (misinformative) continue;
+            if (information_content > best_so_far) {
+                best_so_far = information_content;
+                color_to_hint = -1;
+                value_to_hint = value;
+                player_to_hint = partner;
+            }
+        }
+    }
+
+    if (best_so_far == 0) return false;
+
+    /* Give the hint. */
+    if (color_to_hint != -1) {
+        server.pleaseGiveColorHint(player_to_hint, Color(color_to_hint));
+    } else if (value_to_hint != -1) {
+        server.pleaseGiveValueHint(player_to_hint, Value(value_to_hint));
+    } else {
+        assert(false);
+    }
+
+    return true;
+}
+
 void SimpleBot::pleaseMakeMove(Server &server)
 {
     assert(server.whoAmI() == me_);
@@ -130,93 +224,11 @@ void SimpleBot::pleaseMakeMove(Server &server)
      * Otherwise, if someone else has an unknown-playable card, hint it.
      * Otherwise, just discard my oldest (index-0) card. */
 
-    for (int i=0; i < 4; ++i) {
-        if (handKnowledge_[me_][i].isPlayable) {
-            server.pleasePlay(i);
-            return;
-        }
-    }
-    
-    if (server.hintStonesRemaining() > 0) {
-        const int numPlayers = handKnowledge_.size();
-        int best_so_far = 0;
-        int player_to_hint = -1;
-        int color_to_hint = -1;
-        int value_to_hint = -1;
-        for (int i = 1; i < numPlayers; ++i) {
-            const int partner = (me_ + i) % numPlayers;
-            assert(partner != me_);
-            const std::vector<Card> partners_hand = server.handOfPlayer(partner);
-            bool is_really_playable[4];
-            for (int c=0; c < 4; ++c) {
-                is_really_playable[c] =
-                    server.pileOf(partners_hand[c].color).nextValueIs(partners_hand[c].value);
-            }
-            /* Can we construct a color hint that gives our partner information
-             * about unknown-playable cards, without also including any
-             * unplayable cards? */
-            for (Color color = RED; color <= BLUE; ++color) {
-                int information_content = 0;
-                bool misinformative = false;
-                for (int c=0; c < 4; ++c) {
-                    if (partners_hand[c].color != color) continue;
-                    if (is_really_playable[c] &&
-                        !handKnowledge_[partner][c].isPlayable)
-                    {
-                        information_content += 1;
-                    } else if (!is_really_playable[c]) {
-                        misinformative = true;
-                        break;
-                    }
-                }
-                if (misinformative) continue;
-                if (information_content > best_so_far) {
-                    best_so_far = information_content;
-                    color_to_hint = color;
-                    value_to_hint = -1;
-                    player_to_hint = partner;
-                }
-            }
-
-            for (int value = 1; value <= 5; ++value) {
-                int information_content = 0;
-                bool misinformative = false;
-                for (int c=0; c < 4; ++c) {
-                    if (partners_hand[c].value != value) continue;
-                    if (is_really_playable[c] &&
-                        !handKnowledge_[partner][c].isPlayable)
-                    {
-                        information_content += 1;
-                    } else if (!is_really_playable[c]) {
-                        misinformative = true;
-                        break;
-                    }
-                }
-                if (misinformative) continue;
-                if (information_content > best_so_far) {
-                    best_so_far = information_content;
-                    color_to_hint = -1;
-                    value_to_hint = value;
-                    player_to_hint = partner;
-                }
-            }
-        }
-
-        if (best_so_far != 0) {
-            /* Give the hint. */
-            if (color_to_hint != -1) {
-                server.pleaseGiveColorHint(player_to_hint, Color(color_to_hint));
-            } else if (value_to_hint != -1) {
-                server.pleaseGiveValueHint(player_to_hint, Value(value_to_hint));
-            } else {
-                assert(false);
-            }
-
-            return;
-        }
-    }
+    if (maybePlayAPlayableCard(server)) return;
+    if (maybeGiveHelpfulHint(server)) return;
 
     /* We couldn't find a good hint to give, or else we're out of hint-stones.
      * Discard a card. */
+
     server.pleaseDiscard(0);
 }
