@@ -15,6 +15,7 @@ struct CardKnowledge {
 
     bool isPlayable;
     bool isValuable;
+    bool isWorthless;
 
 private:
     enum Possibility { NO, MAYBE, YES };
@@ -49,6 +50,7 @@ class ValueBot : public Hanabi::Bot {
     void invalidateKnol(int player_index, int card_index);
     void seePublicCard(const Hanabi::Card &played_card);
     void wipeOutPlayables(const Hanabi::Card &played_card);
+    void makeThisValueWorthless(Hanabi::Value value);
 
     /* Returns -1 if the named player is planning to play a card on his
      * turn, or if all his cards are known to be valuable. Otherwise,
@@ -60,6 +62,7 @@ class ValueBot : public Hanabi::Bot {
     bool maybePlayLowestPlayableCard(Hanabi::Server &server);
     bool maybeGiveHelpfulHint(Hanabi::Server &server);
     bool maybeGiveValuableWarning(Hanabi::Server &server);
+    bool maybeDiscardWorthlessCard(Hanabi::Server &server);
     bool maybeDiscardOldCard(Hanabi::Server &server);
 
   public:

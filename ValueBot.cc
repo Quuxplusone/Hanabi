@@ -27,6 +27,7 @@ CardKnowledge::CardKnowledge()
     }
     isPlayable = false;
     isValuable = false;
+    isWorthless = false;
 }
 
 bool CardKnowledge::mustBe(Hanabi::Color color) const { return (colors_[color] == YES); }
@@ -133,6 +134,20 @@ void ValueBot::seePublicCard(const Card &card)
     assert(1 <= entry && entry <= card.count());
 }
 
+void ValueBot::makeThisValueWorthless(Value value)
+{
+    const int numPlayers = handKnowledge_.size();
+    for (int player = 0; player < numPlayers; ++player) {
+        for (int index = 0; index < 4; ++index) {
+            CardKnowledge &knol = handKnowledge_[player][index];
+            if (knol.mustBe(value)) {
+                assert(!knol.isValuable);
+                knol.isWorthless = true;
+            }
+        }
+    }
+}
+
 void ValueBot::pleaseObserveBeforeMove(const Server &server)
 {
     assert(server.whoAmI() == me_);
@@ -150,16 +165,29 @@ void ValueBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, i
     assert(server.whoAmI() == me_);
 
     Card card = server.activeCard();
+
+    assert(!handKnowledge_[from][card_index].isWorthless);
+    if (handKnowledge_[from][card_index].isValuable) {
+        /* We weren't wrong about this card being valuable, were we? */
+        assert(this->cardCount_[card.color][card.value] == card.count()-1);
+    }
+
+    this->invalidateKnol(from, card_index);
+
     if (server.pileOf(card.color).nextValueIs(card.value)) {
         /* This card is getting played, not discarded. */
         if (this->cardCount_[card.color][card.value] != card.count()-1) {
             this->wipeOutPlayables(card);
         }
         this->cardCount_[card.color][card.value] = -1;  /* we no longer care about it */
+        if (lowestPlayableValue() > card.value) {
+            /* A whole bunch of cards just dropped below the "lowest playable value"
+             * rank. Mark them as unplayable. */
+            this->makeThisValueWorthless(card.value);
+        }
     } else {
         this->seePublicCard(card);
     }
-    this->invalidateKnol(from, card_index);
 }
 
 void ValueBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, int to, Color color, const std::vector<int> &card_indices)
@@ -189,6 +217,7 @@ int ValueBot::nextDiscardIndex(int to) const
 {
     for (int i=0; i < 4; ++i) {
         if (handKnowledge_[to][i].isPlayable) return -1;
+        if (handKnowledge_[to][i].isWorthless) return -1;
     }
     for (int i=0; i < 4; ++i) {
         if (!handKnowledge_[to][i].isValuable) return i;
@@ -273,6 +302,19 @@ bool ValueBot::maybePlayLowestPlayableCard(Server &server)
         assert(1 <= best_value && best_value <= 5);
         server.pleasePlay(best_index);
         return true;
+    }
+
+    return false;
+}
+
+bool ValueBot::maybeDiscardWorthlessCard(Server &server)
+{
+    for (int i=0; i < 4; ++i) {
+        const CardKnowledge &knol = handKnowledge_[me_][i];
+        if (knol.isWorthless) {
+            server.pleaseDiscard(i);
+            return true;
+        }
     }
 
     return false;
@@ -372,6 +414,7 @@ bool ValueBot::maybeGiveValuableWarning(Server &server)
     assert(cardCount_[targetCard.color][targetCard.value] != -1);
     assert(!handKnowledge_[player_to_warn][discardIndex].isValuable);
     assert(!handKnowledge_[player_to_warn][discardIndex].isPlayable);
+    assert(!handKnowledge_[player_to_warn][discardIndex].isWorthless);
     Hint bestHint = bestHintForPlayer(server, player_to_warn);
     if (bestHint.information_content > 0) {
         /* Excellent; we found a hint that will cause him to play a card
@@ -441,6 +484,7 @@ void ValueBot::pleaseMakeMove(Server &server)
     /* We couldn't find a good hint to give, or else we're out of hint-stones.
      * Discard a card. */
 
+    if (maybeDiscardWorthlessCard(server)) return;
     if (maybeDiscardOldCard(server)) return;
 
     /* In this unfortunate case, which still happens fairly often, I find
