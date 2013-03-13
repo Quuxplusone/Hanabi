@@ -8,4 +8,4 @@ Typing "make" will build all of the bots that the Makefile knows about.
 ./run_BlindBot
   (blindly plays a random card each time: avg score 1.25)
 ./run_SimpleBot
-  (hints about playable cards: avg score 17.84)
+  (hints about playable cards: avg score 17.8)

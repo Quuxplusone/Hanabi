@@ -23,6 +23,14 @@ bool CardKnowledge::mustBe(Hanabi::Value value) const { return (values_[value] =
 bool CardKnowledge::cannotBe(Hanabi::Color color) const { return (colors_[color] == NO); }
 bool CardKnowledge::cannotBe(Hanabi::Value value) const { return (values_[value] == NO); }
 
+int CardKnowledge::value() const
+{
+    for (int i=1; i <= 5; ++i) {
+        if (this->mustBe(Value(i))) return i;
+    }
+    assert(false);
+}
+
 void CardKnowledge::setMustBe(Hanabi::Color color)
 {
     assert(colors_[color] != NO);
@@ -133,13 +141,24 @@ void SimpleBot::wipeOutPlayables(const Card &played_card)
     }
 }
 
-bool SimpleBot::maybePlayAPlayableCard(Server &server)
+bool SimpleBot::maybePlayLowestPlayableCard(Server &server)
 {
+    /* Find the lowest-valued playable card in my hand. */
+    int best_index = -1;
+    int best_value = 6;
     for (int i=0; i < 4; ++i) {
-        if (handKnowledge_[me_][i].isPlayable) {
-            server.pleasePlay(i);
-            return true;
+        const CardKnowledge &knol = handKnowledge_[me_][i];
+        if (knol.isPlayable && knol.value() < best_value) {
+            best_index = i;
+            best_value = knol.value();
         }
+    }
+
+    /* If I found a card to play, play it. */
+    if (best_index != -1) {
+        assert(1 <= best_value && best_value <= 5);
+        server.pleasePlay(best_index);
+        return true;
     }
 
     return false;
@@ -236,7 +255,7 @@ void SimpleBot::pleaseMakeMove(Server &server)
      * Otherwise, if someone else has an unknown-playable card, hint it.
      * Otherwise, just discard my oldest (index-0) card. */
 
-    if (maybePlayAPlayableCard(server)) return;
+    if (maybePlayLowestPlayableCard(server)) return;
     if (maybeGiveHelpfulHint(server)) return;
 
     /* We couldn't find a good hint to give, or else we're out of hint-stones.

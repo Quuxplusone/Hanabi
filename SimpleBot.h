@@ -8,6 +8,7 @@ struct CardKnowledge {
     bool mustBe(Hanabi::Value value) const;
     bool cannotBe(Hanabi::Color color) const;
     bool cannotBe(Hanabi::Value value) const;
+    int value() const;
 
     void setMustBe(Hanabi::Color color);
     void setMustBe(Hanabi::Value value);
@@ -30,7 +31,7 @@ class SimpleBot : public Hanabi::Bot {
     void invalidateKnol(int player_index, int card_index);
     void wipeOutPlayables(const Hanabi::Card &played_card);
 
-    bool maybePlayAPlayableCard(Hanabi::Server &server);
+    bool maybePlayLowestPlayableCard(Hanabi::Server &server);
     bool maybeGiveHelpfulHint(Hanabi::Server &server);
 
   public:
