@@ -51,7 +51,7 @@ class Pile {
   public:
     bool empty() const;
     Card topCard() const;  /* throws if the pile is empty */
-    bool nextValueIs(Value) const;
+    bool nextValueIs(int value) const;
 };
 
 struct Server {

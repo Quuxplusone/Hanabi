@@ -91,9 +91,9 @@ Card Pile::topCard() const
     }
 }
 
-bool Pile::nextValueIs(Value v) const
+bool Pile::nextValueIs(int v) const
 {
-    return (v == this->value + 1);
+    return (v == (int)this->value + 1);
 }
 
 void Pile::increment_()
