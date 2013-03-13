@@ -215,6 +215,14 @@ void ValueBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
     if (isWarning) {
         assert(discardIndex != -1);
         handKnowledge_[to][discardIndex].isValuable = true;
+        if (value == lowestValue) {
+            /* This card is valuable, i.e., not worthless; therefore it
+             * must be playable sometime in the future. And since it's
+             * the lowest playable value already, it must in fact be
+             * playable right now! But we can't say the same thing for
+             * any of the other named cards. */
+            handKnowledge_[to][discardIndex].isPlayable = true;
+        }
     }
 
     for (int i=0; i < card_indices.size(); ++i) {

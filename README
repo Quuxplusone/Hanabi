@@ -10,4 +10,4 @@ Typing "make" will build all of the bots that the Makefile knows about.
 ./run_SimpleBot
   (hints about playable cards: avg score 17.89-)
 ./run_ValueBot
-  (also warns about valuable cards: avg score 18.11-)
+  (also warns about valuable cards: avg score 18.20-)
