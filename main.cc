@@ -22,27 +22,32 @@ int main()
     BotFactory<BOTNAME> botFactory;
 
     server.setLog(&std::cerr);
-    int score = server.runGame(botFactory, 3);
 
-    assert(score == server.currentScore());
+    int sum = 0;
+    int perfectGames = 0;
+    int mulligansUsed[4] = {};
 
-    std::cout << stringify(BOTNAME) " scored " << score << " points in that first game.\n";
-
-    server.setLog(NULL);
-
-    const int NUMGAMES = 100000;
-    int sum = score;
-    int perfectGames = (score == 25);
-    for (int i=2; i <= NUMGAMES; ++i) {
+    for (int i=1; i <= 1000000; ++i) {
         int score = server.runGame(botFactory, 3);
         assert(score == server.currentScore());
+        assert(0 <= server.mulligansUsed() && server.mulligansUsed() <= 3);
         sum += score;
         perfectGames += (score == 25);
-        if ((i % 2000) == 0) {
+        mulligansUsed[server.mulligansUsed()] += 1;
+        if (i == 1) {
+            std::cout << stringify(BOTNAME) " scored " << score << " points in that first game.\n";
+            server.setLog(NULL);
+        } else if ((i % 20000) == 0) {
             std::cout << "Over " << i << " games, " stringify(BOTNAME) " scored an average of "
                       << (sum / (double)i) << " points per game.\n";
             if (perfectGames != 0) {
                 std::cout << "  " << 100*(perfectGames / (double)i) << " percent were perfect games.\n";
+            }
+            if (mulligansUsed[0] != i) {
+                std::cout << "  Mulligans used: 0 (" << 100*(mulligansUsed[0] / (double)i)
+                          << "%); 1 (" << 100*(mulligansUsed[1] / (double)i)
+                          << "%); 2 (" << 100*(mulligansUsed[2] / (double)i)
+                          << "%); 3 (" << 100*(mulligansUsed[3] / (double)i) << "%).\n";
             }
         }
     }
