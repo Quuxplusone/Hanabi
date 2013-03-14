@@ -38,20 +38,26 @@ struct Card {
     Card(Color c, int v);
     int count() const;
     std::string toString() const;
-    bool operator== (const Card &) const;
-    bool operator!= (const Card &) const;
+
+    bool operator== (const Card &rhs) const
+    { return (this->color == rhs.color) && (this->value == rhs.value); }
+
+    bool operator!= (const Card &rhs) const
+    { return !(*this == rhs); }
 };
 
 class Pile {
   private:
     Color color;
-    int value;  /* might be zero */
+    int size_;  /* might be zero */
     void increment_();
     friend class Server;
   public:
-    bool empty() const;
+    bool empty() const { return size_ == 0; }
+    int size() const { return size_; }
     Card topCard() const;  /* throws if the pile is empty */
-    bool nextValueIs(int value) const;
+    bool nextValueIs(int value) const { return value == size_+1; }
+    bool contains(int value) const { return (1 <= value && value <= size_); }
 };
 
 struct Server {

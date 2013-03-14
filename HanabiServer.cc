@@ -65,41 +65,20 @@ std::string Card::toString() const
     return result;
 }
 
-bool Card::operator== (const Card &rhs) const
-{
-    return (this->color == rhs.color) && (this->value == rhs.value);
-}
-
-bool Card::operator!= (const Card &rhs) const
-{
-    return !(*this == rhs);
-}
-
-bool Pile::empty() const
-{
-    return (value == 0);
-}
-
 Card Pile::topCard() const
 {
-    if (value == 0) {
+    if (size_ == 0) {
         throw std::runtime_error("empty pile has no top card");
-    } else if (value < 0 || 5 < value) {
-        throw std::logic_error("top card of pile is invalid");
     } else {
-        return Card(color, value);
+        assert(1 <= size_ && size_ <= 5);
+        return Card(color, size_);
     }
-}
-
-bool Pile::nextValueIs(int v) const
-{
-    return (v == (int)this->value + 1);
 }
 
 void Pile::increment_()
 {
-    assert(0 <= value && value <= 4);
-    ++value;
+    assert(0 <= size_ && size_ <= 4);
+    ++size_;
 }
 
 /* virtual destructor */
@@ -148,7 +127,7 @@ int Server::runGame(const BotFactory &botFactory, int numPlayers)
     /* Initialize the piles and stones. */
     for (Color color = RED; color <= BLUE; ++color) {
         piles_[(int)color].color = color;
-        piles_[(int)color].value = 0;
+        piles_[(int)color].size_ = 0;
     }
     mulligansRemaining_ = NUMMULLIGANS;
     hintStonesRemaining_ = NUMHINTS;

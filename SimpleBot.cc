@@ -1,7 +1,5 @@
 
 #include <cassert>
-#include <cstdlib>
-#include <iostream>
 #include "Hanabi.h"
 #include "SimpleBot.h"
 
@@ -94,7 +92,7 @@ void SimpleBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, i
      * this means that all the named cards are playable. */
 
     Pile pile = server.pileOf(color);
-    int value = pile.empty() ? 1 : pile.topCard().value+1;
+    int value = pile.size() + 1;
 
     assert(1 <= value && value <= 5);
 

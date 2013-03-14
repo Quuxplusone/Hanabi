@@ -1,8 +1,6 @@
 
 #include <algorithm>
 #include <cassert>
-#include <cstdlib>
-#include <iostream>
 #include "Hanabi.h"
 #include "ValueBot.h"
 
@@ -200,7 +198,7 @@ void ValueBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
      * whether they're playable or not. */
 
     Pile pile = server.pileOf(color);
-    int value = pile.empty() ? 1 : pile.topCard().value+1;
+    int value = pile.size() + 1;
 
     assert(1 <= value && value <= 5);
 
