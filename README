@@ -11,3 +11,10 @@ Typing "make" will build all of the bots that the Makefile knows about.
   (hints about playable cards: avg score 17.89-)
 ./run_ValueBot
   (also warns about valuable cards: avg score 18.58+)
+./run_CheatBot
+  (secretly radios its partners: avg score 24.34+)
+
+The interesting thing about CheatBot is that the perfect strategy is
+difficult to compute, even when hints are redundant. Also note that
+24.89 is a hard upper bound on the average score in a three-player game,
+because the last one or two cards in the deck might be 5s.
