@@ -1,6 +1,8 @@
 
 #include "Hanabi.h"
 
+class HolmesBot;
+
 struct CardKnowledge {
     CardKnowledge();
 
@@ -13,8 +15,7 @@ struct CardKnowledge {
 
     void setMustBe(Hanabi::Color color);
     void setMustBe(Hanabi::Value value);
-    void update(const Hanabi::Server &server);
-
+    void update(const Hanabi::Server &server, const HolmesBot &bot);
 
     bool isPlayable;
     bool isValuable;
@@ -36,20 +37,26 @@ struct Hint {
     void give(Hanabi::Server &);
 };
 
-class FinesseBot : public Hanabi::Bot {
+class HolmesBot : public Hanabi::Bot {
+
+    friend class CardKnowledge;
 
     int me_;
 
     /* What does each player know about his own hand? */
     std::vector<std::vector<CardKnowledge> > handKnowledge_;
-    /* What cards have been seen so far? */
-    int cardCount_[Hanabi::NUMCOLORS][5+1];
+    /* What cards have been played so far? */
+    int playedCount_[Hanabi::NUMCOLORS][5+1];
+    /* What cards in players' hands are definitely identified?
+     * This table is recomputed every turn. */
+    int locatedCount_[Hanabi::NUMCOLORS][5+1];
 
     /* Returns the lowest value of card that is currently playable. */
     Hanabi::Value lowestPlayableValue() const;
 
     bool couldBeValuable(int value) const;
 
+    bool updateLocatedCount();
     void invalidateKnol(int player_index, int card_index);
     void seePublicCard(const Hanabi::Card &played_card);
     void wipeOutPlayables(const Hanabi::Card &played_card);
@@ -62,7 +69,6 @@ class FinesseBot : public Hanabi::Bot {
 
     Hint bestHintForPlayer(const Hanabi::Server &server, int to) const;
 
-    bool maybeEnablePlay(Hanabi::Server &server, int partner);
     bool maybePlayLowestPlayableCard(Hanabi::Server &server);
     bool maybeGiveHelpfulHint(Hanabi::Server &server);
     bool maybeGiveValuableWarning(Hanabi::Server &server);
@@ -70,7 +76,7 @@ class FinesseBot : public Hanabi::Bot {
     bool maybeDiscardOldCard(Hanabi::Server &server);
 
   public:
-    FinesseBot(int index, int numPlayers);
+    HolmesBot(int index, int numPlayers);
     virtual void pleaseObserveBeforeMove(const Hanabi::Server &);
     virtual void pleaseMakeMove(Hanabi::Server &);
       virtual void pleaseObserveBeforeDiscard(const Hanabi::Server &, int from, int card_index);

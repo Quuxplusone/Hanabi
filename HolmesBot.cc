@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <cassert>
 #include "Hanabi.h"
-#include "FinesseBot.h"
+#include "HolmesBot.h"
 
 using namespace Hanabi;
 
@@ -65,23 +65,74 @@ void CardKnowledge::setMustBe(Hanabi::Value value)
     }
 }
 
-void CardKnowledge::update(const Server &server)
+void CardKnowledge::update(const Server &server, const HolmesBot &bot)
 {
-    int known = -1;
-    for (Color k = RED; k <= BLUE; ++k) {
-        if (colors_[k] == NO) continue;
-        else if (known == -1) known = k;
-        else { known = -1; break; }
-    }
-    if (known != -1) this->setMustBe(Color(known));
+    while (true) {
+        bool restart = false;
+        int color = this->color();
+        int value = this->value();
 
-    known = -1;
-    for (int v = 1; v <= 5; ++v) {
-        if (values_[v] == NO) continue;
-        else if (known == -1) known = v;
-        else { known = -1; break; }
+        if (color == -1) {
+            for (Color k = RED; k <= BLUE; ++k) {
+                if (colors_[k] == NO) continue;
+                else if (color == -1) color = k;
+                else { color = -1; break; }
+            }
+            if (color != -1) this->setMustBe(Color(color));
+        }
+
+        if (value == -1) {
+            for (int v = 1; v <= 5; ++v) {
+                if (values_[v] == NO) continue;
+                else if (value == -1) value = v;
+                else { value = -1; break; }
+            }
+            if (value != -1) this->setMustBe(Value(value));
+        }
+
+        /* If we do know the card's color, see if we can identify its value
+         * based on what we know about its properties. */
+        if (value == -1 && color != -1) {
+            for (int v = 1; v <= 5; ++v) {
+                if (values_[v] == NO) continue;
+                const int total = Card(Color(color),v).count();
+                const int played = bot.playedCount_[color][v];
+                const int held = bot.locatedCount_[color][v];
+                assert(played+held <= total);
+                if ((played+held == total) ||
+                    (isValuable && played != total-1) ||
+                    (isWorthless && played != -1))
+                {
+                    values_[v] = NO;
+                    restart = true;
+                }
+            }
+            if (restart) continue;
+        }
+
+        /* If we know the card's value, see if we can identify its color
+         * based on what we know about its properties. */
+        if (color == -1 && value != -1) {
+            for (Color k = RED; k <= BLUE; ++k) {
+                if (colors_[k] == NO) continue;
+                const int total = Card(k,value).count();
+                const int played = bot.playedCount_[k][value];
+                const int held = bot.locatedCount_[k][value];
+                assert(played+held <= total);
+                if ((played+held == total) ||
+                    (isValuable && played != total-1) ||
+                    (isWorthless && played != -1))
+                {
+                    colors_[k] = NO;
+                    restart = true;
+                }
+            }
+            if (restart) continue;
+        }
+
+        /* Done. */
+        break;
     }
-    if (known != -1) this->setMustBe(Value(known));
 
     if (!this->isWorthless) {
         for (Color k = RED; k <= BLUE; ++k) {
@@ -134,7 +185,7 @@ void Hint::give(Server &server)
     }
 }
 
-FinesseBot::FinesseBot(int index, int numPlayers)
+HolmesBot::HolmesBot(int index, int numPlayers)
 {
     me_ = index;
     handKnowledge_.resize(numPlayers);
@@ -143,16 +194,16 @@ FinesseBot::FinesseBot(int index, int numPlayers)
     }
     for (Color k = RED; k <= BLUE; ++k) {
         for (int v = 1; v <= 5; ++v) {
-            cardCount_[k][v] = 0;
+            playedCount_[k][v] = 0;
         }
     }
 }
 
-Value FinesseBot::lowestPlayableValue() const
+Value HolmesBot::lowestPlayableValue() const
 {
     for (int v = 1; v <= 5; ++v) {
         for (Color k = RED; k <= BLUE; ++k) {
-            if (cardCount_[k][v] != -1) return Value(v);
+            if (playedCount_[k][v] != -1) return Value(v);
         }
     }
 
@@ -160,17 +211,17 @@ Value FinesseBot::lowestPlayableValue() const
     assert(false);
 }
 
-bool FinesseBot::couldBeValuable(int value) const
+bool HolmesBot::couldBeValuable(int value) const
 {
     if (value < 1 || 5 < value) return false;
     for (Color k = RED; k <= BLUE; ++k) {
-        if (cardCount_[k][value] == Card(k,value).count()-1)
+        if (playedCount_[k][value] == Card(k,value).count()-1)
             return true;
     }
     return false;
 }
 
-void FinesseBot::invalidateKnol(int player_index, int card_index)
+void HolmesBot::invalidateKnol(int player_index, int card_index)
 {
     /* The other cards are shifted down and a new one drawn at the end. */
     std::vector<CardKnowledge> &vec = handKnowledge_[player_index];
@@ -181,15 +232,15 @@ void FinesseBot::invalidateKnol(int player_index, int card_index)
     vec.back() = CardKnowledge();
 }
 
-void FinesseBot::seePublicCard(const Card &card)
+void HolmesBot::seePublicCard(const Card &card)
 {
-    int &entry = this->cardCount_[card.color][card.value];
+    int &entry = this->playedCount_[card.color][card.value];
     if (entry == -1) return;
     entry += 1;
     assert(1 <= entry && entry <= card.count());
 }
 
-void FinesseBot::makeThisValueWorthless(Value value)
+void HolmesBot::makeThisValueWorthless(Value value)
 {
     const int numPlayers = handKnowledge_.size();
     for (int player = 0; player < numPlayers; ++player) {
@@ -203,25 +254,52 @@ void FinesseBot::makeThisValueWorthless(Value value)
     }
 }
 
-void FinesseBot::pleaseObserveBeforeMove(const Server &server)
+bool HolmesBot::updateLocatedCount()
 {
-    assert(server.whoAmI() == me_);
+    int newCount[Hanabi::NUMCOLORS][5+1] = {};
 
     for (int p=0; p < handKnowledge_.size(); ++p) {
         for (int i=0; i < 4; ++i) {
-            handKnowledge_[p][i].update(server);
+            CardKnowledge &knol = handKnowledge_[p][i];
+            int k = knol.color();
+            int v = knol.value();
+            if (k != -1 && v != -1) {
+                newCount[k][v] += 1;
+            }
         }
     }
+
+    if (memcmp(this->locatedCount_, newCount, sizeof newCount) != 0) {
+        memcpy(this->locatedCount_, newCount, sizeof newCount);
+        return true;  /* there was a change */
+    }
+    return false;
 }
 
-void FinesseBot::pleaseObserveBeforeDiscard(const Hanabi::Server &server, int from, int card_index)
+void HolmesBot::pleaseObserveBeforeMove(const Server &server)
+{
+    assert(server.whoAmI() == me_);
+
+    memset(this->locatedCount_, '\0', sizeof this->locatedCount_);
+    this->updateLocatedCount();
+    do {
+        for (int p=0; p < handKnowledge_.size(); ++p) {
+            for (int i=0; i < 4; ++i) {
+                CardKnowledge &knol = handKnowledge_[p][i];
+                knol.update(server, *this);
+            }
+        }
+    } while (this->updateLocatedCount());
+}
+
+void HolmesBot::pleaseObserveBeforeDiscard(const Hanabi::Server &server, int from, int card_index)
 {
     assert(server.whoAmI() == me_);
     this->invalidateKnol(from, card_index);
     this->seePublicCard(server.activeCard());
 }
 
-void FinesseBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, int card_index)
+void HolmesBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, int card_index)
 {
     assert(server.whoAmI() == me_);
 
@@ -230,17 +308,17 @@ void FinesseBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from,
     assert(!handKnowledge_[from][card_index].isWorthless);
     if (handKnowledge_[from][card_index].isValuable) {
         /* We weren't wrong about this card being valuable, were we? */
-        assert(this->cardCount_[card.color][card.value] == card.count()-1);
+        assert(this->playedCount_[card.color][card.value] == card.count()-1);
     }
 
     this->invalidateKnol(from, card_index);
 
     if (server.pileOf(card.color).nextValueIs(card.value)) {
         /* This card is getting played, not discarded. */
-        if (this->cardCount_[card.color][card.value] != card.count()-1) {
+        if (this->playedCount_[card.color][card.value] != card.count()-1) {
             this->wipeOutPlayables(card);
         }
-        this->cardCount_[card.color][card.value] = -1;  /* we no longer care about it */
+        this->playedCount_[card.color][card.value] = -1;  /* we no longer care about it */
         if (lowestPlayableValue() > card.value) {
             /* A whole bunch of cards just dropped below the "lowest playable value"
              * rank. Mark them as unplayable. */
@@ -251,11 +329,11 @@ void FinesseBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from,
     }
 }
 
-void FinesseBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, int to, Color color, const std::vector<int> &card_indices)
+void HolmesBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, int to, Color color, const std::vector<int> &card_indices)
 {
     assert(server.whoAmI() == me_);
 
-    /* Someone has given me a color hint. Using FinesseBot's strategy,
+    /* Someone has given me a color hint. Using HolmesBot's strategy,
      * this means that all the named cards are playable; except for
      * any whose values I already know, which I can deduce for myself
      * whether they're playable or not. */
@@ -271,7 +349,7 @@ void FinesseBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, 
         if (knol.value() == -1) {
             knol.setMustBe(Value(value));
         }
-        const int count = cardCount_[color][knol.value()];
+        const int count = playedCount_[color][knol.value()];
         if (count == -1) {
             knol.isWorthless = true;
         } else {
@@ -285,7 +363,7 @@ void FinesseBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, 
     }
 }
 
-int FinesseBot::nextDiscardIndex(int to) const
+int HolmesBot::nextDiscardIndex(int to) const
 {
     for (int i=0; i < 4; ++i) {
         if (handKnowledge_[to][i].isPlayable) return -1;
@@ -297,7 +375,7 @@ int FinesseBot::nextDiscardIndex(int to) const
     return -1;
 }
 
-void FinesseBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, int to, Value value, const std::vector<int> &card_indices)
+void HolmesBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, int to, Value value, const std::vector<int> &card_indices)
 {
     assert(server.whoAmI() == me_);
 
@@ -335,12 +413,12 @@ void FinesseBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, 
     }
 }
 
-void FinesseBot::pleaseObserveAfterMove(const Hanabi::Server &server)
+void HolmesBot::pleaseObserveAfterMove(const Hanabi::Server &server)
 {
     assert(server.whoAmI() == me_);
 }
 
-void FinesseBot::wipeOutPlayables(const Card &played_card)
+void HolmesBot::wipeOutPlayables(const Card &played_card)
 {
     const int numPlayers = handKnowledge_.size();
     for (int player = 0; player < numPlayers; ++player) {
@@ -356,9 +434,12 @@ void FinesseBot::wipeOutPlayables(const Card &played_card)
     }
 }
 
-bool FinesseBot::maybePlayLowestPlayableCard(Server &server)
+bool HolmesBot::maybePlayLowestPlayableCard(Server &server)
 {
-    /* Find the lowest-valued playable card in my hand. */
+    /* Find the lowest-valued playable card in my hand.
+     * Notice that this has the useful side-effect of preferring to play
+     * cards whose values are unknown (-1) but which have been deduced
+     * to be playable by CardKnowledge::update(). */
     int best_index = -1;
     int best_value = 6;
     for (int i=0; i < 4; ++i) {
@@ -379,7 +460,7 @@ bool FinesseBot::maybePlayLowestPlayableCard(Server &server)
     return false;
 }
 
-bool FinesseBot::maybeDiscardWorthlessCard(Server &server)
+bool HolmesBot::maybeDiscardWorthlessCard(Server &server)
 {
     for (int i=0; i < 4; ++i) {
         const CardKnowledge &knol = handKnowledge_[me_][i];
@@ -392,7 +473,7 @@ bool FinesseBot::maybeDiscardWorthlessCard(Server &server)
     return false;
 }
 
-Hint FinesseBot::bestHintForPlayer(const Server &server, int partner) const
+Hint HolmesBot::bestHintForPlayer(const Server &server, int partner) const
 {
     assert(partner != me_);
     const std::vector<Card> partners_hand = server.handOfPlayer(partner);
@@ -464,12 +545,7 @@ Hint FinesseBot::bestHintForPlayer(const Server &server, int partner) const
     return best_so_far;
 }
 
-bool FinesseBot::maybeEnablePlay(Server &server, int partner)
-{
-    return false;
-}
-
-bool FinesseBot::maybeGiveValuableWarning(Server &server)
+bool HolmesBot::maybeGiveValuableWarning(Server &server)
 {
     const int numPlayers = handKnowledge_.size();
     const int player_to_warn = (me_ + 1) % numPlayers;
@@ -479,19 +555,16 @@ bool FinesseBot::maybeGiveValuableWarning(Server &server)
     int discardIndex = this->nextDiscardIndex(player_to_warn);
     if (discardIndex == -1) return false;
     Card targetCard = server.handOfPlayer(player_to_warn)[discardIndex];
-    if (cardCount_[targetCard.color][targetCard.value] != targetCard.count()-1) {
+    if (playedCount_[targetCard.color][targetCard.value] != targetCard.count()-1) {
         /* The target card isn't actually valuable. Good. */
         return false;
     }
 
     /* Oh no! Warn him before he discards it! */
-    assert(cardCount_[targetCard.color][targetCard.value] != -1);
+    assert(playedCount_[targetCard.color][targetCard.value] != -1);
     assert(!handKnowledge_[player_to_warn][discardIndex].isValuable);
     assert(!handKnowledge_[player_to_warn][discardIndex].isPlayable);
     assert(!handKnowledge_[player_to_warn][discardIndex].isWorthless);
-
-    /* First, try to rescue him by playing a card. */
-    if (maybeEnablePlay(server, player_to_warn)) return true;
 
     /* Sometimes we just can't give a hint. */
     if (server.hintStonesRemaining() == 0) return false;
@@ -515,7 +588,7 @@ bool FinesseBot::maybeGiveValuableWarning(Server &server)
     return true;
 }
 
-bool FinesseBot::maybeGiveHelpfulHint(Server &server)
+bool HolmesBot::maybeGiveHelpfulHint(Server &server)
 {
     if (server.hintStonesRemaining() == 0) return false;
 
@@ -536,7 +609,7 @@ bool FinesseBot::maybeGiveHelpfulHint(Server &server)
     return true;
 }
 
-bool FinesseBot::maybeDiscardOldCard(Server &server)
+bool HolmesBot::maybeDiscardOldCard(Server &server)
 {
     for (int i=0; i < 4; ++i) {
         const CardKnowledge &knol = handKnowledge_[me_][i];
@@ -549,7 +622,7 @@ bool FinesseBot::maybeDiscardOldCard(Server &server)
     return false;
 }
 
-void FinesseBot::pleaseMakeMove(Server &server)
+void HolmesBot::pleaseMakeMove(Server &server)
 {
     assert(server.whoAmI() == me_);
     assert(server.activePlayer() == me_);

@@ -11,8 +11,8 @@ Typing "make" will build all of the bots that the Makefile knows about.
   (hints about playable cards: avg score 17.89-)
 ./run_ValueBot
   (also warns about valuable cards: avg score 18.58+)
-./run_FinesseBot
-  (also performs inferences: avg score 18.94-)
+./run_HolmesBot
+  (also performs inferences: avg score 19.23-)
 ./run_CheatBot
   (secretly radios its partners: avg score 24.50-)
 
