@@ -71,6 +71,35 @@ void CheatBot::pleaseObserveColorHint(const Server &, int, int, Color, const std
 void CheatBot::pleaseObserveValueHint(const Server &, int, int, Value, const std::vector<int> &) { }
 void CheatBot::pleaseObserveAfterMove(const Server &) { }
 
+bool CheatBot::maybeEnablePlay(Server &server, int plus)
+{
+    const int partner = (me_ + plus) % numPlayers;
+    if (partner == me_) return false;
+
+    int lowest_value = 5;
+    int best_index = -1;
+
+    for (int i=0; i < 4; ++i) {
+        Card card = hands[me_][i];
+        if (card.value >= lowest_value) continue;
+        if (!server.pileOf(card.color).nextValueIs(card.value)) continue;
+
+        Card nextCard = card;
+        nextCard.value = Value(card.value+1);
+        assert(nextCard.count() != 0);
+        if (vector_count(hands[partner], nextCard) != 0) {
+            lowest_value = card.value;
+            best_index = i;
+        }
+    }
+    if (best_index != -1) {
+        assert(1 <= lowest_value && lowest_value <= 4);
+        server.pleasePlay(best_index);
+        return true;
+    }
+    return false;
+}
+
 bool CheatBot::maybeRescueNextPlayer(Server &server, int plus)
 {
     const int partner = (me_ + plus) % numPlayers;
@@ -85,26 +114,15 @@ bool CheatBot::maybeRescueNextPlayer(Server &server, int plus)
      * of my own? For example, I could play the red 3 to make his red 4
      * playable. */
 
-    for (int i=0; i < 4; ++i) {
-        Card card = hands[partner][i];
-        if (card.value == 1) continue;
-        if (server.pileOf(card.color).nextValueIs(card.value-1)) {
-            Card previousCard = card;
-            previousCard.value = Value(card.value-1);
-            assert(previousCard.count() != 0);
-            for (int j=0; j < 4; ++j) {
-                if (hands[me_][j] == previousCard) {
-                    server.pleasePlay(j);
-                    return true;
-                }
-            }
-        }
-    }
+    if (maybeEnablePlay(server, plus)) return true;
 
     /* I can't enable any play for him, which means the best I could do
      * is discard in order to allow him to temporize. However, if we're
      * in the endgame, play/discard is no worse than discard/temporize. */
     if (endgameNoMoreDiscarding) return false;
+
+    /* Eh, he can just temporize. */
+    if (server.hintStonesRemaining() > 0) return false;
 
     for (int i=0; i < 4; ++i) {
         Card card = hands[partner][i];
@@ -114,15 +132,16 @@ bool CheatBot::maybeRescueNextPlayer(Server &server, int plus)
         }
     }
 
-    /* Eh, he can just temporize. */
-    if (server.hintStonesRemaining() > 0) return false;
-
     /* Let's return a hint stone so that he can temporize. */
     return maybeDiscardWorthlessCard(server) || maybePlayProbabilities(server);
 }
 
 bool CheatBot::maybePlayLowestPlayableCard(Server &server)
 {
+    for (int plus = 1; plus < numPlayers; ++plus) {
+        if (maybeEnablePlay(server, plus)) return true;
+    }
+
     int lowest_value = 10;
     int best_index = -1;
     for (int i=0; i < 4; ++i) {
@@ -131,17 +150,6 @@ bool CheatBot::maybePlayLowestPlayableCard(Server &server)
             if (card.value < lowest_value) {
                 best_index = i;
                 lowest_value = card.value;
-            } else if (card.value == lowest_value && card.value != 5) {
-                Card nextCard = card;
-                nextCard.value = Value(card.value+1);
-                assert(nextCard.count() != 0);
-                for (int p=0; p < numPlayers; ++p) {
-                    if (p == me_) continue;
-                    if (vector_count(hands[p], nextCard) != 0) {
-                        /* This play would set up something for a partner! */
-                        best_index = i;
-                    }
-                }
             }
         }
     }
@@ -238,7 +246,7 @@ void CheatBot::pleaseMakeMove(Server &server)
     assert(server.whoAmI() == me_);
     assert(server.activePlayer() == me_);
 
-    endgameNoMoreDiscarding = (server.cardsRemainingInDeck() <= cardsLeftToPlay(server));
+    endgameNoMoreDiscarding = (cardsLeftToPlay(server) >= server.cardsRemainingInDeck()+1);
 
     /* If the next player will have no move and be unable to temporize,
      * it might be best for me to rescue him by discarding.
@@ -250,7 +258,18 @@ void CheatBot::pleaseMakeMove(Server &server)
     if (maybeRescueNextPlayer(server, 1)) return;
     if (maybeRescueNextPlayer(server, 2)) return;
     if (maybePlayLowestPlayableCard(server)) return;
-    if (endgameNoMoreDiscarding || server.hintStonesRemaining() >= 2) {
+
+    const int stillToGo = cardsLeftToPlay(server);
+    assert(1 <= stillToGo && stillToGo <= 25);
+
+    /* This heuristic isn't very scientifically motivated. */
+    static const int tempo[] = {
+        0, 1, 2, 3,
+        4, 4, 8, 25
+    };
+    const bool shouldTemporizeEarly = (stillToGo <= tempo[server.hintStonesRemaining()]);
+
+    if (endgameNoMoreDiscarding || shouldTemporizeEarly) {
         /* Emergency endgame situation. Temporizing is better than discarding. */
         if (maybeTemporize(server)) return;
         if (maybeDiscardWorthlessCard(server)) return;

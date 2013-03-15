@@ -6,6 +6,7 @@ class CheatBot : public Hanabi::Bot {
     int me_;
 
     bool maybeRescueNextPlayer(Hanabi::Server &, int plus);
+    bool maybeEnablePlay(Hanabi::Server &, int plus);
     bool maybePlayLowestPlayableCard(Hanabi::Server &);
     bool maybeDiscardWorthlessCard(Hanabi::Server &);
     bool maybePlayProbabilities(Hanabi::Server &);
