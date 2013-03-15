@@ -351,8 +351,6 @@ Card Server::pleasePlay(int index)
                     << " played his " << nth(index)
                     << " card (" << selectedCard.toString() << ").\n";
         } else {
-            const bool one = (mulligansRemaining_ == 1);
-            const bool none = (mulligansRemaining_ == 0);
             (*log_) << "Player " << activePlayer_
                     << " tried to play his " << nth(index)
                     << " card (" << selectedCard.toString() << ")"
