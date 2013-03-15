@@ -1,5 +1,5 @@
 
-all: run_BlindBot run_SimpleBot run_ValueBot run_CheatBot
+all: run_BlindBot run_SimpleBot run_ValueBot run_CheatBot run_FinesseBot
 
 .PHONY clean:
 	rm -f *.o
