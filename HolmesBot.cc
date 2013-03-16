@@ -6,6 +6,8 @@
 
 using namespace Hanabi;
 
+static const bool UseMulligans = true;
+
 template<typename T>
 static bool vector_contains(const std::vector<T> &vec, T value)
 {
@@ -199,7 +201,7 @@ HolmesBot::HolmesBot(int index, int numPlayers)
     }
 }
 
-Value HolmesBot::lowestPlayableValue() const
+int HolmesBot::lowestPlayableValue() const
 {
     for (int v = 1; v <= 5; ++v) {
         for (Color k = RED; k <= BLUE; ++k) {
@@ -208,7 +210,7 @@ Value HolmesBot::lowestPlayableValue() const
     }
 
     /* In this case, even 5s are not playable; the game must be over! */
-    assert(false);
+    return 6;
 }
 
 bool HolmesBot::couldBeValuable(int value) const
@@ -385,7 +387,7 @@ void HolmesBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, i
      * Otherwise, all the named cards are playable. */
 
     const int discardIndex = this->nextDiscardIndex(to);
-    const Value lowestValue = lowestPlayableValue();
+    const int lowestValue = lowestPlayableValue();
     const bool isPointless = (value < lowestValue);
     const bool isWarning = couldBeValuable(value) && vector_contains(card_indices, discardIndex);
 
@@ -609,6 +611,33 @@ bool HolmesBot::maybeGiveHelpfulHint(Server &server)
     return true;
 }
 
+bool HolmesBot::maybePlayMysteryCard(Server &server)
+{
+    if (!UseMulligans) return false;
+
+    const int table[4] = { -99, 1, 2, 4 };
+    if (server.cardsRemainingInDeck() <= table[server.mulligansRemaining()]) {
+        /* We could temporize, or we could do something that forces us to
+         * draw a card. If we got here, temporizing has been rejected as
+         * an option; so let's do something that forces us to draw a card.
+         * At this point, we might as well try to play something random
+         * and hope we get lucky. */
+        for (int i=3; i >= 0; --i) {
+            const CardKnowledge &knol = handKnowledge_[me_][i];
+            assert(!knol.isPlayable);  /* or we would have played it already */
+            if (knol.isWorthless) continue;
+            if (knol.color() != -1 && knol.value() != -1) {
+                /* A known card shouldn't be playable. */
+                assert(!server.pileOf(Color(knol.color())).nextValueIs(knol.value()));
+                continue;
+            }
+            server.pleasePlay(i);
+            return true;
+        }
+    }
+    return false;
+}
+
 bool HolmesBot::maybeDiscardOldCard(Server &server)
 {
     for (int i=0; i < 4; ++i) {
@@ -626,6 +655,7 @@ void HolmesBot::pleaseMakeMove(Server &server)
 {
     assert(server.whoAmI() == me_);
     assert(server.activePlayer() == me_);
+    assert(UseMulligans || !server.mulligansUsed());
 
     /* If I have a playable card, play it.
      * Otherwise, if someone else has an unknown-playable card, hint it.
@@ -638,6 +668,7 @@ void HolmesBot::pleaseMakeMove(Server &server)
     /* We couldn't find a good hint to give, or else we're out of hint-stones.
      * Discard a card. */
 
+    if (maybePlayMysteryCard(server)) return;
     if (maybeDiscardWorthlessCard(server)) return;
     if (maybeDiscardOldCard(server)) return;
 

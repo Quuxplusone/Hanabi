@@ -52,7 +52,7 @@ class HolmesBot : public Hanabi::Bot {
     int locatedCount_[Hanabi::NUMCOLORS][5+1];
 
     /* Returns the lowest value of card that is currently playable. */
-    Hanabi::Value lowestPlayableValue() const;
+    int lowestPlayableValue() const;
 
     bool couldBeValuable(int value) const;
 
@@ -72,6 +72,7 @@ class HolmesBot : public Hanabi::Bot {
     bool maybePlayLowestPlayableCard(Hanabi::Server &server);
     bool maybeGiveHelpfulHint(Hanabi::Server &server);
     bool maybeGiveValuableWarning(Hanabi::Server &server);
+    bool maybePlayMysteryCard(Hanabi::Server &server);
     bool maybeDiscardWorthlessCard(Hanabi::Server &server);
     bool maybeDiscardOldCard(Hanabi::Server &server);
 
