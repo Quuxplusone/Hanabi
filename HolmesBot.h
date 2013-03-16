@@ -15,6 +15,8 @@ struct CardKnowledge {
 
     void setMustBe(Hanabi::Color color);
     void setMustBe(Hanabi::Value value);
+    void setCannotBe(Hanabi::Color color);
+    void setCannotBe(Hanabi::Value value);
     void update(const Hanabi::Server &server, const HolmesBot &bot);
 
     bool isPlayable;

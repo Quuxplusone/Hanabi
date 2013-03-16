@@ -1,6 +1,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdlib>
 #include "Hanabi.h"
 #include "HolmesBot.h"
 
@@ -66,6 +67,9 @@ void CardKnowledge::setMustBe(Hanabi::Value value)
         values_[v] = ((v == value) ? YES : NO);
     }
 }
+
+void CardKnowledge::setCannotBe(Hanabi::Color color) { colors_[color] = NO; }
+void CardKnowledge::setCannotBe(Hanabi::Value value) { values_[value] = NO; }
 
 void CardKnowledge::update(const Server &server, const HolmesBot &bot)
 {
@@ -139,7 +143,7 @@ void CardKnowledge::update(const Server &server, const HolmesBot &bot)
     if (!this->isWorthless) {
         for (Color k = RED; k <= BLUE; ++k) {
             if (colors_[k] == NO) continue;
-            for (int v = 5; v >= 1; --v) {
+            for (int v = 1; v <= 5; ++v) {
                 if (values_[v] == NO) continue;
                 if (!server.pileOf(k).contains(v)) {
                     goto mightBeUseful;
@@ -154,7 +158,7 @@ void CardKnowledge::update(const Server &server, const HolmesBot &bot)
     if (!this->isPlayable) {
         for (Color k = RED; k <= BLUE; ++k) {
             if (colors_[k] == NO) continue;
-            for (int v = 5; v >= 1; --v) {
+            for (int v = 1; v <= 5; ++v) {
                 if (values_[v] == NO) continue;
                 if (!server.pileOf(k).nextValueIs(v)) {
                     goto mightBeUnplayable;
@@ -250,15 +254,17 @@ bool HolmesBot::updateLocatedCount()
         for (int i=0; i < 4; ++i) {
             CardKnowledge &knol = handKnowledge_[p][i];
             int k = knol.color();
-            int v = knol.value();
-            if (k != -1 && v != -1) {
-                newCount[k][v] += 1;
+            if (k != -1) {
+                int v = knol.value();
+                if (v != -1) {
+                    newCount[k][v] += 1;
+                }
             }
         }
     }
 
-    if (memcmp(this->locatedCount_, newCount, sizeof newCount) != 0) {
-        memcpy(this->locatedCount_, newCount, sizeof newCount);
+    if (std::memcmp(this->locatedCount_, newCount, sizeof newCount) != 0) {
+        std::memcpy(this->locatedCount_, newCount, sizeof newCount);
         return true;  /* there was a change */
     }
     return false;
@@ -268,7 +274,7 @@ void HolmesBot::pleaseObserveBeforeMove(const Server &server)
 {
     assert(server.whoAmI() == me_);
 
-    memset(this->locatedCount_, '\0', sizeof this->locatedCount_);
+    std::memset(this->locatedCount_, '\0', sizeof this->locatedCount_);
     this->updateLocatedCount();
     do {
         for (int p=0; p < handKnowledge_.size(); ++p) {
@@ -326,11 +332,15 @@ void HolmesBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, i
 
     assert(1 <= value && value <= 5);
 
-    for (int i=0; i < card_indices.size(); ++i) {
-        CardKnowledge &knol = handKnowledge_[to][card_indices[i]];
-        knol.setMustBe(color);
-        if (knol.value() == -1) {
-            knol.setMustBe(Value(value));
+    for (int i=0; i < 4; ++i) {
+        CardKnowledge &knol = handKnowledge_[to][i];
+        if (vector_contains(card_indices, i)) {
+            knol.setMustBe(color);
+            if (knol.value() == -1) {
+                knol.setMustBe(Value(value));
+            }
+        } else {
+            knol.setCannotBe(color);
         }
     }
 }
@@ -376,11 +386,15 @@ void HolmesBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, i
         }
     }
 
-    for (int i=0; i < card_indices.size(); ++i) {
-        CardKnowledge &knol = handKnowledge_[to][card_indices[i]];
-        knol.setMustBe(value);
-        if (!isWarning && !isPointless) {
-            knol.isPlayable = true;
+    for (int i=0; i < 4; ++i) {
+        CardKnowledge &knol = handKnowledge_[to][i];
+        if (vector_contains(card_indices, i)) {
+            knol.setMustBe(value);
+            if (!isWarning && !isPointless) {
+                knol.isPlayable = true;
+            }
+        } else {
+            knol.setCannotBe(value);
         }
     }
 }
