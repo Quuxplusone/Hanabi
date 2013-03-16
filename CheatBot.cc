@@ -100,42 +100,6 @@ bool CheatBot::maybeEnablePlay(Server &server, int plus)
     return false;
 }
 
-bool CheatBot::maybeRescueNextPlayer(Server &server, int plus)
-{
-    const int partner = (me_ + plus) % numPlayers;
-    if (partner == me_) return false;
-
-    for (int i=0; i < 4; ++i) {
-        Card card = hands[partner][i];
-        if (server.pileOf(card.color).nextValueIs(card.value)) return false;
-    }
-
-    /* The next player has nothing to play! Can I rescue him by a play
-     * of my own? For example, I could play the red 3 to make his red 4
-     * playable. */
-
-    if (maybeEnablePlay(server, plus)) return true;
-
-    /* I can't enable any play for him, which means the best I could do
-     * is discard in order to allow him to temporize. However, if we're
-     * in the endgame, play/discard is no worse than discard/temporize. */
-    if (endgameNoMoreDiscarding) return false;
-
-    /* Eh, he can just temporize. */
-    if (server.hintStonesRemaining() > 0) return false;
-
-    for (int i=0; i < 4; ++i) {
-        Card card = hands[partner][i];
-        if (server.pileOf(card.color).contains(card.value)) {
-            /* This card is worthless. He can just discard it. */
-            return false;
-        }
-    }
-
-    /* Let's return a hint stone so that he can temporize. */
-    return maybeDiscardWorthlessCard(server) || maybePlayProbabilities(server);
-}
-
 bool CheatBot::maybePlayLowestPlayableCard(Server &server)
 {
     for (int plus = 1; plus < numPlayers; ++plus) {
@@ -161,6 +125,19 @@ bool CheatBot::maybePlayLowestPlayableCard(Server &server)
     }
 
     return false;
+}
+
+static bool noPlayableCardsVisible(const Server &server)
+{
+    for (int p=0; p < hands.size(); ++p) {
+        for (int i=0; i < 4; ++i) {
+            Card card = hands[p][i];
+            if (server.pileOf(card.color).nextValueIs(card.value)) {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 bool CheatBot::maybeDiscardWorthlessCard(Server &server)
@@ -255,9 +232,11 @@ void CheatBot::pleaseMakeMove(Server &server)
      * to regain, go ahead and do that.
      * Otherwise, if there's a hint-stone available, temporize. */
 
-    if (maybeRescueNextPlayer(server, 1)) return;
-    if (maybeRescueNextPlayer(server, 2)) return;
     if (maybePlayLowestPlayableCard(server)) return;
+
+    if (noPlayableCardsVisible(server)) {
+        if (maybeDiscardWorthlessCard(server)) return;
+    }
 
     const int stillToGo = cardsLeftToPlay(server);
     assert(1 <= stillToGo && stillToGo <= 25);
@@ -265,7 +244,7 @@ void CheatBot::pleaseMakeMove(Server &server)
     /* This heuristic isn't very scientifically motivated. */
     static const int tempo[] = {
         0, 1, 2, 3,
-        4, 4, 8, 25
+        4, 5, 8, 25
     };
     const bool shouldTemporizeEarly = (stillToGo <= tempo[server.hintStonesRemaining()]);
 

@@ -14,7 +14,7 @@ Typing "make" will build all of the bots that the Makefile knows about.
 ./run_HolmesBot
   (also performs inferences: avg score 19.30-, or 19.34+ using mulligans)
 ./run_CheatBot
-  (secretly radios its partners: avg score 24.50-)
+  (secretly radios its partners: avg score 24.67-)
 
 The interesting thing about CheatBot is that the perfect strategy is
 difficult to compute, even when hints are redundant. Also note that
