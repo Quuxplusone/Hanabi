@@ -20,67 +20,77 @@ static bool vector_contains(const std::vector<T> &vec, T value)
 
 CardKnowledge::CardKnowledge()
 {
-    for (Color color = RED; color <= BLUE; ++color) {
-        colors_[color] = MAYBE;
-    }
-    for (int value = 1; value <= 5; ++value) {
-        values_[value] = MAYBE;
-    }
+    color_ = -1;
+    value_ = -1;
+    std::memset(cantBe_, '\0', sizeof cantBe_);
     isPlayable = false;
     isValuable = false;
     isWorthless = false;
 }
 
-bool CardKnowledge::mustBe(Hanabi::Color color) const { return (colors_[color] == YES); }
-bool CardKnowledge::mustBe(Hanabi::Value value) const { return (values_[value] == YES); }
-bool CardKnowledge::cannotBe(Hanabi::Color color) const { return (colors_[color] == NO); }
-bool CardKnowledge::cannotBe(Hanabi::Value value) const { return (values_[value] == NO); }
-
-int CardKnowledge::color() const
+bool CardKnowledge::mustBe(Hanabi::Color color) const { return (this->color_ == color); }
+bool CardKnowledge::mustBe(Hanabi::Value value) const { return (this->value_ == value); }
+bool CardKnowledge::cannotBe(Hanabi::Color color) const
 {
-    for (Color k = RED; k <= BLUE; ++k) {
-        if (this->mustBe(k)) return (int)k;
-    }
-    return -1;
-}
-
-int CardKnowledge::value() const
-{
+    if (this->color_ != -1) return (this->color_ != color);
     for (int v = 1; v <= 5; ++v) {
-        if (this->mustBe(Value(v))) return v;
+        if (!cantBe_[color][v]) return false;
     }
-    return -1;
+    return true;
 }
+
+bool CardKnowledge::cannotBe(Hanabi::Value value) const
+{
+    if (this->value_ != -1) return (this->value_ != value);
+    for (Color k = RED; k <= BLUE; ++k) {
+        if (!cantBe_[k][value]) return false;
+    }
+    return true;
+}
+
+int CardKnowledge::color() const { return this->color_; }
+int CardKnowledge::value() const { return this->value_; }
 
 void CardKnowledge::setMustBe(Hanabi::Color color)
 {
-    assert(colors_[color] != NO);
     for (Color k = RED; k <= BLUE; ++k) {
-        colors_[k] = ((k == color) ? YES : NO);
+        if (k != color) setCannotBe(k);
     }
+    color_ = color;
 }
 
 void CardKnowledge::setMustBe(Hanabi::Value value)
 {
-    assert(values_[value] != NO);
     for (int v = 1; v <= 5; ++v) {
-        values_[v] = ((v == value) ? YES : NO);
+        if (v != value) setCannotBe(Value(v));
+    }
+    value_ = value;
+}
+
+void CardKnowledge::setCannotBe(Hanabi::Color color)
+{
+    for (int v = 1; v <= 5; ++v) {
+        cantBe_[color][v] = true;
     }
 }
 
-void CardKnowledge::setCannotBe(Hanabi::Color color) { colors_[color] = NO; }
-void CardKnowledge::setCannotBe(Hanabi::Value value) { values_[value] = NO; }
+void CardKnowledge::setCannotBe(Hanabi::Value value)
+{
+    for (Color k = RED; k <= BLUE; ++k) {
+        cantBe_[k][value] = true;
+    }
+}
 
 void CardKnowledge::update(const Server &server, const HolmesBot &bot)
 {
     while (true) {
         bool restart = false;
-        int color = this->color();
-        int value = this->value();
+        int color = this->color_;
+        int value = this->value_;
 
         if (color == -1) {
             for (Color k = RED; k <= BLUE; ++k) {
-                if (colors_[k] == NO) continue;
+                if (this->cannotBe(k)) continue;
                 else if (color == -1) color = k;
                 else { color = -1; break; }
             }
@@ -89,48 +99,33 @@ void CardKnowledge::update(const Server &server, const HolmesBot &bot)
 
         if (value == -1) {
             for (int v = 1; v <= 5; ++v) {
-                if (values_[v] == NO) continue;
+                if (this->cannotBe(Value(v))) continue;
                 else if (value == -1) value = v;
                 else { value = -1; break; }
             }
             if (value != -1) this->setMustBe(Value(value));
         }
 
-        /* If we do know the card's color, see if we can identify its value
-         * based on what we know about its properties. */
-        if (value == -1 && color != -1) {
-            for (int v = 1; v <= 5; ++v) {
-                if (values_[v] == NO) continue;
-                const int total = Card(Color(color),v).count();
-                const int played = bot.playedCount_[color][v];
-                const int held = bot.locatedCount_[color][v];
-                assert(played+held <= total);
-                if ((played+held == total) ||
-                    (isValuable && played != total-1) ||
-                    (isWorthless && played != -1))
-                {
-                    values_[v] = NO;
-                    restart = true;
-                }
-            }
-            if (restart) continue;
-        }
+        assert(color == this->color_);
+        assert(value == this->value_);
 
-        /* If we know the card's value, see if we can identify its color
-         * based on what we know about its properties. */
-        if (color == -1 && value != -1) {
+        /* See if we can identify the card based on what we know
+         * about its properties. */
+        if (value == -1 || color == -1) {
             for (Color k = RED; k <= BLUE; ++k) {
-                if (colors_[k] == NO) continue;
-                const int total = Card(k,value).count();
-                const int played = bot.playedCount_[k][value];
-                const int held = bot.locatedCount_[k][value];
-                assert(played+held <= total);
-                if ((played+held == total) ||
-                    (isValuable && played != total-1) ||
-                    (isWorthless && played != -1))
-                {
-                    colors_[k] = NO;
-                    restart = true;
+                for (int v = 1; v <= 5; ++v) {
+                    if (this->cantBe_[k][v]) continue;
+                    const int total = Card(k,v).count();
+                    const int played = bot.playedCount_[k][v];
+                    const int held = bot.locatedCount_[k][v];
+                    assert(played+held <= total);
+                    if ((played+held == total) ||
+                        (isValuable && played != total-1) ||
+                        (isWorthless && played != -1))
+                    {
+                        this->cantBe_[k][v] = true;
+                        restart = true;
+                    }
                 }
             }
             if (restart) continue;
@@ -142,9 +137,8 @@ void CardKnowledge::update(const Server &server, const HolmesBot &bot)
 
     if (!this->isWorthless) {
         for (Color k = RED; k <= BLUE; ++k) {
-            if (colors_[k] == NO) continue;
             for (int v = 1; v <= 5; ++v) {
-                if (values_[v] == NO) continue;
+                if (this->cantBe_[k][v]) continue;
                 if (!server.pileOf(k).contains(v)) {
                     goto mightBeUseful;
                 }
@@ -157,9 +151,8 @@ void CardKnowledge::update(const Server &server, const HolmesBot &bot)
 
     if (!this->isPlayable) {
         for (Color k = RED; k <= BLUE; ++k) {
-            if (colors_[k] == NO) continue;
             for (int v = 1; v <= 5; ++v) {
-                if (values_[v] == NO) continue;
+                if (this->cantBe_[k][v]) continue;
                 if (!server.pileOf(k).nextValueIs(v)) {
                     goto mightBeUnplayable;
                 }
@@ -438,7 +431,6 @@ bool HolmesBot::maybePlayLowestPlayableCard(Server &server)
 
     /* If I found a card to play, play it. */
     if (best_index != -1) {
-        assert(1 <= best_value && best_value <= 5);
         server.pleasePlay(best_index);
         return true;
     }

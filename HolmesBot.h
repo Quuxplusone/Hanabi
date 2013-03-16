@@ -24,9 +24,9 @@ struct CardKnowledge {
     bool isWorthless;
 
 private:
-    enum Possibility { NO, MAYBE, YES };
-    Possibility colors_[Hanabi::NUMCOLORS];
-    Possibility values_[5+1];
+    bool cantBe_[Hanabi::NUMCOLORS][5+1];
+    int color_;
+    int value_;
 };
 
 struct Hint {
