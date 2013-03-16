@@ -242,20 +242,6 @@ void HolmesBot::seePublicCard(const Card &card)
     assert(1 <= entry && entry <= card.count());
 }
 
-void HolmesBot::makeThisValueWorthless(Value value)
-{
-    const int numPlayers = handKnowledge_.size();
-    for (int player = 0; player < numPlayers; ++player) {
-        for (int index = 0; index < 4; ++index) {
-            CardKnowledge &knol = handKnowledge_[player][index];
-            if (knol.mustBe(value)) {
-                assert(!knol.isValuable);
-                knol.isWorthless = true;
-            }
-        }
-    }
-}
-
 bool HolmesBot::updateLocatedCount()
 {
     int newCount[Hanabi::NUMCOLORS][5+1] = {};
@@ -321,11 +307,6 @@ void HolmesBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, 
             this->wipeOutPlayables(card);
         }
         this->playedCount_[card.color][card.value] = -1;  /* we no longer care about it */
-        if (lowestPlayableValue() > card.value) {
-            /* A whole bunch of cards just dropped below the "lowest playable value"
-             * rank. Mark them as unplayable. */
-            this->makeThisValueWorthless(card.value);
-        }
     } else {
         this->seePublicCard(card);
     }
@@ -350,17 +331,6 @@ void HolmesBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, i
         knol.setMustBe(color);
         if (knol.value() == -1) {
             knol.setMustBe(Value(value));
-        }
-        const int count = playedCount_[color][knol.value()];
-        if (count == -1) {
-            knol.isWorthless = true;
-        } else {
-            if (value == knol.value()) {
-                knol.isPlayable = true;
-            }
-            if (count == Card(color,knol.value()).count()-1) {
-                knol.isValuable = true;
-            }
         }
     }
 }

@@ -60,7 +60,6 @@ class HolmesBot : public Hanabi::Bot {
     void invalidateKnol(int player_index, int card_index);
     void seePublicCard(const Hanabi::Card &played_card);
     void wipeOutPlayables(const Hanabi::Card &played_card);
-    void makeThisValueWorthless(Hanabi::Value value);
 
     /* Returns -1 if the named player is planning to play a card on his
      * turn, or if all his cards are known to be valuable. Otherwise,
