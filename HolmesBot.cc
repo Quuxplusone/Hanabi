@@ -198,23 +198,19 @@ HolmesBot::HolmesBot(int index, int numPlayers)
     }
 }
 
-int HolmesBot::lowestPlayableValue() const
+bool HolmesBot::isValuable(const Server &server, Card card) const
 {
-    for (int v = 1; v <= 5; ++v) {
-        for (Color k = RED; k <= BLUE; ++k) {
-            if (playedCount_[k][v] != -1) return Value(v);
-        }
-    }
-
-    /* In this case, even 5s are not playable; the game must be over! */
-    return 6;
+    /* A card which has not yet been played, and which is the
+     * last of its kind, is valuable. */
+    if (server.pileOf(card.color).contains(card.value)) return false;
+    return (playedCount_[card.color][card.value] == card.count()-1);
 }
 
-bool HolmesBot::couldBeValuable(int value) const
+bool HolmesBot::couldBeValuable(const Server &server, int value) const
 {
     if (value < 1 || 5 < value) return false;
     for (Color k = RED; k <= BLUE; ++k) {
-        if (playedCount_[k][value] == Card(k,value).count()-1)
+        if (this->isValuable(server, Card(k,value)))
             return true;
     }
     return false;
@@ -277,6 +273,11 @@ void HolmesBot::pleaseObserveBeforeMove(const Server &server)
             }
         }
     } while (this->updateLocatedCount());
+
+    lowestPlayableValue_ = 6;
+    for (Color color = RED; color <= BLUE; ++color) {
+        lowestPlayableValue_ = std::min(lowestPlayableValue_, server.pileOf(color).size()+1);
+    }
 }
 
 void HolmesBot::pleaseObserveBeforeDiscard(const Hanabi::Server &server, int from, int card_index)
@@ -295,7 +296,7 @@ void HolmesBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, 
     assert(!handKnowledge_[from][card_index].isWorthless);
     if (handKnowledge_[from][card_index].isValuable) {
         /* We weren't wrong about this card being valuable, were we? */
-        assert(this->playedCount_[card.color][card.value] == card.count()-1);
+        assert(this->isValuable(server, card));
     }
 
     this->invalidateKnol(from, card_index);
@@ -360,16 +361,15 @@ void HolmesBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, i
      * Otherwise, all the named cards are playable. */
 
     const int discardIndex = this->nextDiscardIndex(to);
-    const int lowestValue = lowestPlayableValue();
-    const bool isPointless = (value < lowestValue);
-    const bool isWarning = couldBeValuable(value) && vector_contains(card_indices, discardIndex);
+    const bool isPointless = (value < lowestPlayableValue_);
+    const bool isWarning = couldBeValuable(server, value) && vector_contains(card_indices, discardIndex);
 
     assert(!isPointless);
 
     if (isWarning) {
         assert(discardIndex != -1);
         handKnowledge_[to][discardIndex].isValuable = true;
-        if (value == lowestValue) {
+        if (value == lowestPlayableValue_) {
             /* This card is valuable, i.e., not worthless; therefore it
              * must be playable sometime in the future. And since it's
              * the lowest playable value already, it must in fact be
@@ -494,7 +494,7 @@ Hint HolmesBot::bestHintForPlayer(const Server &server, int partner) const
     int valueToAvoid = -1;
     if (discardIndex != -1) {
         valueToAvoid = partners_hand[discardIndex].value;
-        if (!couldBeValuable(valueToAvoid)) valueToAvoid = -1;
+        if (!couldBeValuable(server, valueToAvoid)) valueToAvoid = -1;
     }
 
     for (int value = 1; value <= 5; ++value) {
@@ -533,7 +533,7 @@ bool HolmesBot::maybeGiveValuableWarning(Server &server)
     int discardIndex = this->nextDiscardIndex(player_to_warn);
     if (discardIndex == -1) return false;
     Card targetCard = server.handOfPlayer(player_to_warn)[discardIndex];
-    if (playedCount_[targetCard.color][targetCard.value] != targetCard.count()-1) {
+    if (!this->isValuable(server, targetCard)) {
         /* The target card isn't actually valuable. Good. */
         return false;
     }
@@ -556,10 +556,10 @@ bool HolmesBot::maybeGiveValuableWarning(Server &server)
     }
 
     /* Otherwise, we'll have to give a warning. */
-    if (targetCard.value == lowestPlayableValue()) {
+    if (targetCard.value == lowestPlayableValue_) {
         assert(server.pileOf(targetCard.color).nextValueIs(targetCard.value));
     } else {
-        assert(targetCard.value > lowestPlayableValue());
+        assert(targetCard.value > lowestPlayableValue_);
     }
 
     server.pleaseGiveValueHint(player_to_warn, targetCard.value);

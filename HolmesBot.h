@@ -52,11 +52,12 @@ class HolmesBot : public Hanabi::Bot {
     /* What cards in players' hands are definitely identified?
      * This table is recomputed every turn. */
     int locatedCount_[Hanabi::NUMCOLORS][5+1];
+    /* What is the lowest-value card currently playable?
+     * This value is recomputed every turn. */
+    int lowestPlayableValue_;
 
-    /* Returns the lowest value of card that is currently playable. */
-    int lowestPlayableValue() const;
-
-    bool couldBeValuable(int value) const;
+    bool isValuable(const Hanabi::Server &server, Hanabi::Card card) const;
+    bool couldBeValuable(const Hanabi::Server &server, int value) const;
 
     bool updateLocatedCount();
     void invalidateKnol(int player_index, int card_index);
