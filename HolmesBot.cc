@@ -30,6 +30,7 @@ CardKnowledge::CardKnowledge()
 
 bool CardKnowledge::mustBe(Hanabi::Color color) const { return (this->color_ == color); }
 bool CardKnowledge::mustBe(Hanabi::Value value) const { return (this->value_ == value); }
+bool CardKnowledge::cannotBe(Hanabi::Card card) const { return cantBe_[card.color][card.value]; }
 bool CardKnowledge::cannotBe(Hanabi::Color color) const
 {
     if (this->color_ != -1) return (this->color_ != color);
@@ -120,8 +121,8 @@ void CardKnowledge::update(const Server &server, const HolmesBot &bot)
                     const int held = bot.locatedCount_[k][v];
                     assert(played+held <= total);
                     if ((played+held == total) ||
-                        (isValuable && played != total-1) ||
-                        (isWorthless && played != -1))
+                        (isValuable && !bot.isValuable(server, Card(k,v))) ||
+                        (isWorthless && !server.pileOf(k).contains(v)))
                     {
                         this->cantBe_[k][v] = true;
                         restart = true;
@@ -191,11 +192,7 @@ HolmesBot::HolmesBot(int index, int numPlayers)
     for (int i=0; i < numPlayers; ++i) {
         handKnowledge_[i].resize(4);
     }
-    for (Color k = RED; k <= BLUE; ++k) {
-        for (int v = 1; v <= 5; ++v) {
-            playedCount_[k][v] = 0;
-        }
-    }
+    std::memset(playedCount_, '\0', sizeof playedCount_);
 }
 
 bool HolmesBot::isValuable(const Server &server, Card card) const
@@ -230,7 +227,6 @@ void HolmesBot::invalidateKnol(int player_index, int card_index)
 void HolmesBot::seePublicCard(const Card &card)
 {
     int &entry = this->playedCount_[card.color][card.value];
-    if (entry == -1) return;
     entry += 1;
     assert(1 <= entry && entry <= card.count());
 }
@@ -283,8 +279,8 @@ void HolmesBot::pleaseObserveBeforeMove(const Server &server)
 void HolmesBot::pleaseObserveBeforeDiscard(const Hanabi::Server &server, int from, int card_index)
 {
     assert(server.whoAmI() == me_);
-    this->invalidateKnol(from, card_index);
     this->seePublicCard(server.activeCard());
+    this->invalidateKnol(from, card_index);
 }
 
 void HolmesBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, int card_index)
@@ -299,17 +295,14 @@ void HolmesBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, 
         assert(this->isValuable(server, card));
     }
 
-    this->invalidateKnol(from, card_index);
-
     if (server.pileOf(card.color).nextValueIs(card.value)) {
         /* This card is getting played, not discarded. */
-        if (this->playedCount_[card.color][card.value] != card.count()-1) {
+        if (!this->isValuable(server, card)) {
             this->wipeOutPlayables(card);
         }
-        this->playedCount_[card.color][card.value] = -1;  /* we no longer care about it */
-    } else {
-        this->seePublicCard(card);
     }
+    this->seePublicCard(card);
+    this->invalidateKnol(from, card_index);
 }
 
 void HolmesBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, int to, Color color, const std::vector<int> &card_indices)
@@ -397,16 +390,15 @@ void HolmesBot::pleaseObserveAfterMove(const Hanabi::Server &server)
     assert(server.whoAmI() == me_);
 }
 
-void HolmesBot::wipeOutPlayables(const Card &played_card)
+void HolmesBot::wipeOutPlayables(const Card &card)
 {
     const int numPlayers = handKnowledge_.size();
     for (int player = 0; player < numPlayers; ++player) {
         for (int c = 0; c < 4; ++c) {
             CardKnowledge &knol = handKnowledge_[player][c];
             if (!knol.isPlayable) continue;
-            if (knol.mustBe(Value(5))) continue;
-            if (knol.cannotBe(played_card.color)) continue;
-            if (knol.cannotBe(played_card.value)) continue;
+            if (knol.isValuable) continue;
+            if (knol.cannotBe(card)) continue;
             /* This card might or might not be playable, anymore. */
             knol.isPlayable = false;
         }
@@ -539,7 +531,6 @@ bool HolmesBot::maybeGiveValuableWarning(Server &server)
     }
 
     /* Oh no! Warn him before he discards it! */
-    assert(playedCount_[targetCard.color][targetCard.value] != -1);
     assert(!handKnowledge_[player_to_warn][discardIndex].isValuable);
     assert(!handKnowledge_[player_to_warn][discardIndex].isPlayable);
     assert(!handKnowledge_[player_to_warn][discardIndex].isWorthless);
