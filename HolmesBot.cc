@@ -116,12 +116,13 @@ void CardKnowledge::update(const Server &server, const HolmesBot &bot)
             for (Color k = RED; k <= BLUE; ++k) {
                 for (int v = 1; v <= 5; ++v) {
                     if (this->cantBe_[k][v]) continue;
-                    const int total = Card(k,v).count();
+                    const int total = (v == 1 ? 3 : (v == 5 ? 1 : 2));
                     const int played = bot.playedCount_[k][v];
                     const int held = bot.locatedCount_[k][v];
                     assert(played+held <= total);
                     if ((played+held == total) ||
                         (isValuable && !bot.isValuable(server, Card(k,v))) ||
+                        (isPlayable && !server.pileOf(k).nextValueIs(v)) ||
                         (isWorthless && !server.pileOf(k).contains(v)))
                     {
                         this->cantBe_[k][v] = true;
@@ -203,11 +204,13 @@ bool HolmesBot::isValuable(const Server &server, Card card) const
     return (playedCount_[card.color][card.value] == card.count()-1);
 }
 
-bool HolmesBot::couldBeValuable(const Server &server, int value) const
+bool HolmesBot::couldBeValuable(const Server &server, const CardKnowledge &knol, int value) const
 {
     if (value < 1 || 5 < value) return false;
     for (Color k = RED; k <= BLUE; ++k) {
-        if (this->isValuable(server, Card(k,value)))
+        Card card(k, value);
+        if (knol.cannotBe(card)) continue;
+        if (this->isValuable(server, card))
             return true;
     }
     return false;
@@ -323,7 +326,7 @@ void HolmesBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, i
         CardKnowledge &knol = handKnowledge_[to][i];
         if (vector_contains(card_indices, i)) {
             knol.setMustBe(color);
-            if (knol.value() == -1) {
+            if (knol.value() == -1 && !knol.isWorthless) {
                 knol.setMustBe(Value(value));
             }
         } else {
@@ -355,7 +358,9 @@ void HolmesBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, i
 
     const int discardIndex = this->nextDiscardIndex(to);
     const bool isPointless = (value < lowestPlayableValue_);
-    const bool isWarning = couldBeValuable(server, value) && vector_contains(card_indices, discardIndex);
+    const bool isWarning =
+        vector_contains(card_indices, discardIndex) &&
+        couldBeValuable(server, handKnowledge_[to][discardIndex], value);
 
     assert(!isPointless);
 
@@ -376,7 +381,7 @@ void HolmesBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, i
         CardKnowledge &knol = handKnowledge_[to][i];
         if (vector_contains(card_indices, i)) {
             knol.setMustBe(value);
-            if (!isWarning && !isPointless) {
+            if (knol.color() == -1 && !isWarning && !knol.isWorthless) {
                 knol.isPlayable = true;
             }
         } else {
@@ -468,7 +473,7 @@ Hint HolmesBot::bestHintForPlayer(const Server &server, int partner) const
             if (partners_hand[c].color != color) continue;
             if (is_really_playable[c] && !knol.isPlayable) {
                 information_content += 1;
-            } else if (!is_really_playable[c] && (knol.value() == -1)) {
+            } else if (!is_really_playable[c] && (knol.value() == -1 && !knol.isWorthless)) {
                 misinformative = true;
                 break;
             }
@@ -485,8 +490,9 @@ Hint HolmesBot::bestHintForPlayer(const Server &server, int partner) const
     const int discardIndex = nextDiscardIndex(partner);
     int valueToAvoid = -1;
     if (discardIndex != -1) {
+        const CardKnowledge &knol = handKnowledge_[partner][discardIndex];
         valueToAvoid = partners_hand[discardIndex].value;
-        if (!couldBeValuable(server, valueToAvoid)) valueToAvoid = -1;
+        if (!couldBeValuable(server, knol, valueToAvoid)) valueToAvoid = -1;
     }
 
     for (int value = 1; value <= 5; ++value) {
@@ -494,12 +500,12 @@ Hint HolmesBot::bestHintForPlayer(const Server &server, int partner) const
         int information_content = 0;
         bool misinformative = false;
         for (int c=0; c < 4; ++c) {
+            const CardKnowledge &knol = handKnowledge_[partner][c];
             if (partners_hand[c].value != value) continue;
-            if (is_really_playable[c] &&
-                !handKnowledge_[partner][c].isPlayable)
+            if (is_really_playable[c] && !knol.isPlayable)
             {
                 information_content += 1;
-            } else if (!is_really_playable[c]) {
+            } else if (!is_really_playable[c] && (knol.color() == -1 && !knol.isWorthless)) {
                 misinformative = true;
                 break;
             }

@@ -58,7 +58,7 @@ class HolmesBot : public Hanabi::Bot {
     int lowestPlayableValue_;
 
     bool isValuable(const Hanabi::Server &server, Hanabi::Card card) const;
-    bool couldBeValuable(const Hanabi::Server &server, int value) const;
+    bool couldBeValuable(const Hanabi::Server &server, const CardKnowledge &knol, int value) const;
 
     bool updateLocatedCount();
     void invalidateKnol(int player_index, int card_index);
