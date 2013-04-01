@@ -13,9 +13,8 @@ static std::string nth(int n)
         case 0: return "oldest";
         case 1: return "second-oldest";
         case 2: return "second-newest";
-        case 3: return "newest";
+        default: assert(n == 3); return "newest";
     }
-    assert(false);
 }
 
 static std::string nth(const std::vector<int> &ns)
@@ -25,9 +24,8 @@ static std::string nth(const std::vector<int> &ns)
     switch (ns.size()) {
         case 1: return nth(ns[0]);
         case 2: return nth(ns[0]) + " and " + nth(ns[1]);
-        case 3: return nth(ns[0]) + ", " + nth(ns[1]) + ", and " + nth(ns[2]);
+        default: assert(ns.size() == 3); return nth(ns[0]) + ", " + nth(ns[1]) + ", and " + nth(ns[2]);
     }
-    assert(false);
 }
 
 static std::string colorname(Hanabi::Color color)
