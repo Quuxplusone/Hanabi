@@ -83,7 +83,7 @@ void Pile::increment_()
 Bot::~Bot() { }
 
 /* Hanabi::Card has no default constructor */
-Server::Server(): activeCard_(RED,1) { }
+Server::Server(): activeCard_(RED,1), log_(NULL) { }
 
 bool Server::gameOver() const
 {
