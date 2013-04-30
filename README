@@ -5,6 +5,9 @@ It is very much a work in progress.
 
 Typing "make" will build all of the bots that the Makefile knows about.
 
+Typing "make FAST=1" will use faster "release build" options. This includes
+enabling parallel processing with OpenMP, unless you also pass OPENMP=0.
+
 ./run_BlindBot
   (blindly plays a random card each time: avg score 1.26-)
 ./run_SimpleBot
@@ -22,3 +25,7 @@ The interesting thing about CheatBot is that the perfect strategy is
 difficult to compute, even when hints are redundant. Also note that
 24.89 is a hard upper bound on the average score in a three-player game,
 because the last one or two cards in the deck might be 5s.
+
+Notice that CheatBot must be built with OPENMP=0, since it uses
+global variables to communicate with its partners. However, it is
+also very fast, so this isn't much of a disadvantage.

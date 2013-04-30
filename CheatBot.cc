@@ -10,6 +10,13 @@ static std::vector<std::vector<Card> > hands;
 static std::vector<Card> discards;
 static bool endgameNoMoreDiscarding;
 
+/* Apple's llvm-gcc 4.2.1 does not support this #pragma,
+ * and GCC in general does not support it with non-POD
+ * types such as std::vector (Bugzilla bug 27557).
+ * The appropriate workaround in both cases is to build
+ * run_CheatBot without OpenMP enabled. */
+#pragma omp threadprivate(numPlayers,hands,discards,endgameNoMoreDiscarding)
+
 template<typename T>
 static int vector_count(const std::vector<T> &vec, T value)
 {

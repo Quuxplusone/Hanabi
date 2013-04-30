@@ -14,6 +14,14 @@
 #include stringify(BOTNAME.h)  /* This isn't really Standard-conforming. */
 #include "BotFactory.h"
 
+#ifdef _OPENMP
+#include <omp.h>
+/* Apple's llvm-gcc 4.2.1 cannot handle __builtin_expect() inside an
+ * OpenMP section. __builtin_expect() is used by assert(). This is the
+ * simplest workaround. */
+#define __builtin_expect(exp,c) (exp)
+#endif /* _OPENMP */
+
 struct Statistics {
     int games;
     int totalScore;
@@ -36,29 +44,34 @@ static void run_iterations(int numberOfPlayers, int iterations, Statistics &glob
         local_stats.mulligansUsed[server.mulligansUsed()] += 1;
     }
 
-    /* Ideally this stat-summation would be an atomic transaction. */
-    global_stats.games += iterations;
-    global_stats.totalScore += local_stats.totalScore;
-    global_stats.perfectGames += local_stats.perfectGames;
-    for (int i=0; i < 4; ++i) {
-        global_stats.mulligansUsed[i] += local_stats.mulligansUsed[i];
+    #pragma omp critical (update_and_dump_stats)
+    {
+        global_stats.games += iterations;
+        global_stats.totalScore += local_stats.totalScore;
+        global_stats.perfectGames += local_stats.perfectGames;
+        for (int i=0; i < 4; ++i) {
+            global_stats.mulligansUsed[i] += local_stats.mulligansUsed[i];
+        }
     }
 }
 
 static void dump_stats(Statistics stats)
 {
-    double dgames = stats.games;
+    #pragma omp critical (update_and_dump_stats)
+    {
+        double dgames = stats.games;
 
-    std::cout << "Over " << stats.games << " games, " stringify(BOTNAME) " scored an average of "
-              << (stats.totalScore / dgames) << " points per game.\n";
-    if (stats.perfectGames != 0) {
-        std::cout << "  " << 100*(stats.perfectGames / dgames) << " percent were perfect games.\n";
-    }
-    if (stats.mulligansUsed[0] != stats.games) {
-        std::cout << "  Mulligans used: 0 (" << 100*(stats.mulligansUsed[0] / dgames)
-                  << "%); 1 (" << 100*(stats.mulligansUsed[1] / dgames)
-                  << "%); 2 (" << 100*(stats.mulligansUsed[2] / dgames)
-                  << "%); 3 (" << 100*(stats.mulligansUsed[3] / dgames) << "%).\n";
+        std::cout << "Over " << stats.games << " games, " stringify(BOTNAME) " scored an average of "
+                  << (stats.totalScore / dgames) << " points per game.\n";
+        if (stats.perfectGames != 0) {
+            std::cout << "  " << 100*(stats.perfectGames / dgames) << " percent were perfect games.\n";
+        }
+        if (stats.mulligansUsed[0] != stats.games) {
+            std::cout << "  Mulligans used: 0 (" << 100*(stats.mulligansUsed[0] / dgames)
+                      << "%); 1 (" << 100*(stats.mulligansUsed[1] / dgames)
+                      << "%); 2 (" << 100*(stats.mulligansUsed[2] / dgames)
+                      << "%); 3 (" << 100*(stats.mulligansUsed[3] / dgames) << "%).\n";
+        }
     }
 }
 
@@ -119,16 +132,25 @@ int main(int argc, char **argv)
     }
 
     /* Run a million games, in parallel if possible. */
+
+#ifdef _OPENMP
+    #pragma omp parallel
+    if (omp_get_thread_num() == 0)
+    {
+        std::cout << "Running with " << omp_get_num_threads() << " threads...\n";
+    }
+#endif /* _OPENMP */
+
     Statistics stats = {};
-    for (int i=0; i < numberOfGames/1000; ++i) {
-        run_iterations(numberOfPlayers, 1000, stats);
-        const int games = stats.games;
-        if ((stats.games % every) == 0) {
-            dump_stats(stats);
-        }
+    #pragma omp parallel for
+    for (int i=0; i < numberOfGames / every; ++i) {
+        run_iterations(numberOfPlayers, every, stats);
+        assert(stats.games % every == 0);
+        dump_stats(stats);
     }
 
     if ((numberOfGames % every) != 0) {
+        run_iterations(numberOfPlayers, (numberOfGames % every), stats);
         dump_stats(stats);
     }
 
