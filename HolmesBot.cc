@@ -84,60 +84,62 @@ void CardKnowledge::setCannotBe(Hanabi::Value value)
 
 void CardKnowledge::update(const Server &server, const HolmesBot &bot)
 {
-    while (true) {
-        bool restart = false;
-        int color = this->color_;
-        int value = this->value_;
+    int color = this->color_;
+    int value = this->value_;
 
-        if (color == -1) {
-            for (Color k = RED; k <= BLUE; ++k) {
-                if (this->cannotBe(k)) continue;
-                else if (color == -1) color = k;
-                else { color = -1; break; }
-            }
-            if (color != -1) this->setMustBe(Color(color));
+  repeat_loop:
+
+    if (color == -1) {
+        for (Color k = RED; k <= BLUE; ++k) {
+            if (this->cannotBe(k)) continue;
+            else if (color == -1) color = k;
+            else { color = -1; break; }
         }
-
-        if (value == -1) {
-            for (int v = 1; v <= 5; ++v) {
-                if (this->cannotBe(Value(v))) continue;
-                else if (value == -1) value = v;
-                else { value = -1; break; }
-            }
-            if (value != -1) this->setMustBe(Value(value));
-        }
-
-        assert(color == this->color_);
-        assert(value == this->value_);
-
-        /* See if we can identify the card based on what we know
-         * about its properties. */
-        if (value == -1 || color == -1) {
-            for (Color k = RED; k <= BLUE; ++k) {
-                for (int v = 1; v <= 5; ++v) {
-                    if (this->cantBe_[k][v]) continue;
-                    const int total = (v == 1 ? 3 : (v == 5 ? 1 : 2));
-                    const int played = bot.playedCount_[k][v];
-                    const int held = bot.locatedCount_[k][v];
-                    assert(played+held <= total);
-                    if ((played+held == total) ||
-                        (isValuable && !bot.isValuable(server, Card(k,v))) ||
-                        (isPlayable && !server.pileOf(k).nextValueIs(v)) ||
-                        (isWorthless && !server.pileOf(k).contains(v)))
-                    {
-                        this->cantBe_[k][v] = true;
-                        restart = true;
-                    }
-                }
-            }
-            if (restart) continue;
-        }
-
-        /* Done. */
-        break;
+        if (color != -1) this->setMustBe(Color(color));
     }
 
-    if (!this->isWorthless) {
+    if (value == -1) {
+        for (int v = 1; v <= 5; ++v) {
+            if (this->cannotBe(Value(v))) continue;
+            else if (value == -1) value = v;
+            else { value = -1; break; }
+        }
+        if (value != -1) this->setMustBe(Value(value));
+    }
+
+  complicated_part:
+
+    assert(color == this->color_);
+    assert(value == this->value_);
+
+    /* See if we can identify the card based on what we know
+     * about its properties. */
+    if (value == -1 || color == -1) {
+        bool restart = false;
+        for (Color k = RED; k <= BLUE; ++k) {
+            for (int v = 1; v <= 5; ++v) {
+                if (this->cantBe_[k][v]) continue;
+                const int total = (v == 1 ? 3 : (v == 5 ? 1 : 2));
+                const int played = bot.playedCount_[k][v];
+                const int held = bot.locatedCount_[k][v];
+                assert(played+held <= total);
+                if ((played+held == total) ||
+                    (isValuable && !bot.isValuable(server, Card(k,v))) ||
+                    (isPlayable && !server.pileOf(k).nextValueIs(v)) ||
+                    (isWorthless && !server.pileOf(k).contains(v)))
+                {
+                    this->cantBe_[k][v] = true;
+                    restart = true;
+                }
+            }
+        }
+        if (restart) goto repeat_loop;
+    }
+
+    /* If the card is worthless, it's not valuable or playable. */
+    if (this->isWorthless) return;
+
+    if (!this->isPlayable && !this->isValuable) {
         for (Color k = RED; k <= BLUE; ++k) {
             for (int v = 1; v <= 5; ++v) {
                 if (this->cantBe_[k][v]) continue;
@@ -151,6 +153,22 @@ void CardKnowledge::update(const Server &server, const HolmesBot &bot)
       mightBeUseful:;
     }
 
+    /* Valuableness and playableness are orthogonal. */
+    assert(!this->isWorthless);
+
+    if (!this->isValuable) {
+        for (Color k = RED; k <= BLUE; ++k) {
+            for (int v = 1; v <= 5; ++v) {
+                if (this->cantBe_[k][v]) continue;
+                if (!bot.isValuable(server, Card(k,v))) {
+                    goto mightNotBeValuable;
+                }
+            }
+        }
+        this->isValuable = true;
+      mightNotBeValuable:;
+    }
+
     if (!this->isPlayable) {
         for (Color k = RED; k <= BLUE; ++k) {
             for (int v = 1; v <= 5; ++v) {
@@ -161,7 +179,6 @@ void CardKnowledge::update(const Server &server, const HolmesBot &bot)
             }
         }
         this->isPlayable = true;
-        return;
       mightBeUnplayable:;
     }
 }

@@ -138,7 +138,10 @@ void CardKnowledge::update(const Server &server, const SmartBot &bot, bool useMy
         if (restart) goto repeat_loop;
     }
 
-    if (!this->isWorthless) {
+    /* If the card is worthless, it's not valuable or playable. */
+    if (this->isWorthless) return;
+
+    if (!this->isPlayable && !this->isValuable) {
         for (Color k = RED; k <= BLUE; ++k) {
             for (int v = 1; v <= 5; ++v) {
                 if (this->cantBe_[k][v]) continue;
@@ -152,6 +155,22 @@ void CardKnowledge::update(const Server &server, const SmartBot &bot, bool useMy
       mightBeUseful:;
     }
 
+    /* Valuableness and playableness are orthogonal. */
+    assert(!this->isWorthless);
+
+    if (!this->isValuable) {
+        for (Color k = RED; k <= BLUE; ++k) {
+            for (int v = 1; v <= 5; ++v) {
+                if (this->cantBe_[k][v]) continue;
+                if (!bot.isValuable(server, Card(k,v))) {
+                    goto mightNotBeValuable;
+                }
+            }
+        }
+        this->isValuable = true;
+      mightNotBeValuable:;
+    }
+
     if (!this->isPlayable) {
         for (Color k = RED; k <= BLUE; ++k) {
             for (int v = 1; v <= 5; ++v) {
@@ -162,7 +181,6 @@ void CardKnowledge::update(const Server &server, const SmartBot &bot, bool useMy
             }
         }
         this->isPlayable = true;
-        return;
       mightBeUnplayable:;
     }
 }
