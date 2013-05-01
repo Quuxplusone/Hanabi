@@ -409,6 +409,7 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
     const int discardIndex = this->nextDiscardIndex(to);
     const bool isPointless = (value < lowestPlayableValue_);
     const bool isWarning =
+        (to == (from + 1) % handKnowledge_.size()) &&
         vector_contains(card_indices, discardIndex) &&
         couldBeValuable(server, handKnowledge_[to][discardIndex], value);
 
@@ -554,12 +555,14 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
     }
 
     /* Avoid giving hints that could be misinterpreted as warnings. */
-    const int discardIndex = nextDiscardIndex(partner);
     int valueToAvoid = -1;
-    if (discardIndex != -1) {
-        const CardKnowledge &knol = handKnowledge_[partner][discardIndex];
-        valueToAvoid = partners_hand[discardIndex].value;
-        if (!couldBeValuable(server, knol, valueToAvoid)) valueToAvoid = -1;
+    if (partner == (me_ + 1) % handKnowledge_.size()) {
+        const int discardIndex = nextDiscardIndex(partner);
+        if (discardIndex != -1) {
+            const CardKnowledge &knol = handKnowledge_[partner][discardIndex];
+            valueToAvoid = partners_hand[discardIndex].value;
+            if (!couldBeValuable(server, knol, valueToAvoid)) valueToAvoid = -1;
+        }
     }
 
     for (int value = 1; value <= 5; ++value) {
@@ -655,7 +658,7 @@ bool SmartBot::maybePlayMysteryCard(Server &server)
 {
     if (!UseMulligans) return false;
 
-    const int table[4] = { -99, 1, 2, 4 };
+    const int table[4] = { -99, 1, 2, 3 };
     if (server.cardsRemainingInDeck() <= table[server.mulligansRemaining()]) {
         /* We could temporize, or we could do something that forces us to
          * draw a card. If we got here, temporizing has been rejected as
