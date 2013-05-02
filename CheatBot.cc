@@ -8,14 +8,13 @@ using namespace Hanabi;
 static int numPlayers;
 static std::vector<std::vector<Card> > hands;
 static std::vector<Card> discards;
-static bool endgameNoMoreDiscarding;
 
 /* Apple's llvm-gcc 4.2.1 does not support this #pragma,
  * and GCC in general does not support it with non-POD
  * types such as std::vector (Bugzilla bug 27557).
  * The appropriate workaround in both cases is to build
  * run_CheatBot without OpenMP enabled. */
-#pragma omp threadprivate(numPlayers,hands,discards,endgameNoMoreDiscarding)
+#pragma omp threadprivate(numPlayers,hands,discards)
 
 template<typename T>
 static int vector_count(const std::vector<T> &vec, T value)
@@ -34,15 +33,6 @@ static int visibleCopiesOf(Card card)
         for (int i=0; i < 4; ++i) {
             result += (hands[p][i] == card);
         }
-    }
-    return result;
-}
-
-static int cardsLeftToPlay(const Server &server)
-{
-    int result = 0;
-    for (Color color = RED; color <= BLUE; ++color) {
-        result += (5 - server.pileOf(color).size());
     }
     return result;
 }
@@ -83,6 +73,14 @@ bool CheatBot::maybeEnablePlay(Server &server, int plus)
     const int partner = (me_ + plus) % numPlayers;
     if (partner == me_) return false;
 
+    /* If my partner already has a play, he doesn't need to be
+     * rescued. */
+    for (int i=0; i < 4; ++i) {
+        Card card = hands[partner][i];
+        if (server.pileOf(card.color).nextValueIs(card.value))
+            return false;
+    }
+
     int lowest_value = 5;
     int best_index = -1;
 
@@ -91,8 +89,7 @@ bool CheatBot::maybeEnablePlay(Server &server, int plus)
         if (card.value >= lowest_value) continue;
         if (!server.pileOf(card.color).nextValueIs(card.value)) continue;
 
-        Card nextCard = card;
-        nextCard.value = Value(card.value+1);
+        Card nextCard(card.color, card.value+1);
         assert(nextCard.count() != 0);
         if (vector_count(hands[partner], nextCard) != 0) {
             lowest_value = card.value;
@@ -151,13 +148,29 @@ bool CheatBot::maybeDiscardWorthlessCard(Server &server)
 {
     for (int i=0; i < 4; ++i) {
         Card card = hands[me_][i];
-        if (server.pileOf(card.color).contains(card.value)) {
+        Pile pile = server.pileOf(card.color);
+        if (pile.contains(card.value)) {
             /* This card won't ever be needed again. */
             server.pleaseDiscard(i);
             return true;
+        } else {
+            assert(card.value > pile.size());
+            for (int v = pile.size()+1; v < card.value; ++v) {
+                Card earlier_card(card.color, v);
+                if (vector_count(discards, earlier_card) == earlier_card.count()) {
+                    /* earlier_card is gone for good, so this later card
+                     * is also unplayable. */
+                    server.pleaseDiscard(i);
+                    return true;
+                }
+            }
         }
     }
+    return false;
+}
 
+bool CheatBot::maybeDiscardDuplicateCard(Server &server)
+{
     for (int i=0; i < 4; ++i) {
         Card card = hands[me_][i];
         if (visibleCopiesOf(card) > 1) {
@@ -230,7 +243,10 @@ void CheatBot::pleaseMakeMove(Server &server)
     assert(server.whoAmI() == me_);
     assert(server.activePlayer() == me_);
 
-    endgameNoMoreDiscarding = (cardsLeftToPlay(server) >= server.cardsRemainingInDeck()+1);
+    const int stillToGo = (25 - server.currentScore());
+    const bool endgameNoMoreDiscarding = (stillToGo >= server.cardsRemainingInDeck()+1);
+
+    assert(1 <= stillToGo && stillToGo <= 25);
 
     /* If the next player will have no move and be unable to temporize,
      * it might be best for me to rescue him by discarding.
@@ -243,10 +259,8 @@ void CheatBot::pleaseMakeMove(Server &server)
 
     if (noPlayableCardsVisible(server)) {
         if (maybeDiscardWorthlessCard(server)) return;
+        if (maybeDiscardDuplicateCard(server)) return;
     }
-
-    const int stillToGo = cardsLeftToPlay(server);
-    assert(1 <= stillToGo && stillToGo <= 25);
 
     /* This heuristic isn't very scientifically motivated. */
     static const int tempo[] = {
@@ -259,9 +273,11 @@ void CheatBot::pleaseMakeMove(Server &server)
         /* Emergency endgame situation. Temporizing is better than discarding. */
         if (maybeTemporize(server)) return;
         if (maybeDiscardWorthlessCard(server)) return;
+        if (maybeDiscardDuplicateCard(server)) return;
         if (maybePlayProbabilities(server)) return;
     } else {
         if (maybeDiscardWorthlessCard(server)) return;
+        if (maybeDiscardDuplicateCard(server)) return;
         if (maybeTemporize(server)) return;
         if (maybePlayProbabilities(server)) return;
     }

@@ -8,6 +8,7 @@ class CheatBot : public Hanabi::Bot {
     bool maybeEnablePlay(Hanabi::Server &, int plus);
     bool maybePlayLowestPlayableCard(Hanabi::Server &);
     bool maybeDiscardWorthlessCard(Hanabi::Server &);
+    bool maybeDiscardDuplicateCard(Hanabi::Server &);
     bool maybePlayProbabilities(Hanabi::Server &);
     bool maybeTemporize(Hanabi::Server &);
     void discardHighestCard(Hanabi::Server &);
