@@ -364,20 +364,16 @@ void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
 
     /* Someone has given me a color hint. Using SmartBot's strategy,
      * this means that all the named cards are playable; except for
-     * any whose values I already know, which I can deduce for myself
-     * whether they're playable or not. */
+     * any which are now clearly constrained to be non-playable. */
 
-    Pile pile = server.pileOf(color);
-    int value = pile.size() + 1;
-
-    assert(1 <= value && value <= 5);
+    const int playableValue = server.pileOf(color).size() + 1;
 
     for (int i=0; i < 4; ++i) {
         CardKnowledge &knol = handKnowledge_[to][i];
         if (vector_contains(card_indices, i)) {
             knol.setMustBe(color);
-            if (knol.value() == -1 && !knol.isWorthless) {
-                knol.setMustBe(Value(value));
+            if (!knol.isWorthless && !knol.cannotBe(Card(color, playableValue))) {
+                knol.setMustBe(Value(playableValue));
             }
         } else {
             knol.setCannotBe(color);
@@ -534,6 +530,7 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
      * about unknown-playable cards, without also including any
      * unplayable cards? */
     for (Color color = RED; color <= BLUE; ++color) {
+        const int playableValue = server.pileOf(color).size() + 1;
         int information_content = 0;
         bool misinformative = false;
         for (int c=0; c < 4; ++c) {
@@ -541,7 +538,7 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
             if (partners_hand[c].color != color) continue;
             if (is_really_playable[c] && !knol.isPlayable) {
                 information_content += 1;
-            } else if (!is_really_playable[c] && (knol.value() == -1 && !knol.isWorthless)) {
+            } else if (!is_really_playable[c] && !knol.isWorthless && !knol.cannotBe(Card(color, playableValue))) {
                 misinformative = true;
                 break;
             }
