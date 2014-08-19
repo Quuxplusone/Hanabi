@@ -463,34 +463,34 @@ void SmartBot::wipeOutPlayables(const Card &card)
 
 bool SmartBot::maybePlayLowestPlayableCard(Server &server)
 {
-    int best_index = -1;
-
     /* Try to find a card that nobody else knows I know is playable
      * (because they don't see what I see). Let's try to get that card
-     * out of my hand before someone "helpfully" wastes a hint on it. */
+     * out of my hand before someone "helpfully" wastes a hint on it.
+     * Otherwise, prefer lower-valued cards over higher-valued ones.
+     */
+    CardKnowledge eyeKnol[4];
     for (int i=0; i < 4; ++i) {
-        CardKnowledge knol = handKnowledge_[me_][i];
-        if (!knol.isPlayable && !knol.isWorthless && (knol.color() == -1 || knol.value() == -1)) {
-            knol.update(server, *this, true);
-            if (knol.isPlayable) {
-                best_index = i;
-                break;
-            }
-        }
+        eyeKnol[i] = handKnowledge_[me_][i];
+        eyeKnol[i].update(server, *this, /*useMyEyesight=*/true);
     }
 
-    if (best_index == -1) {
-        /* Find the lowest-valued playable card in my hand.
-         * Notice that this has the useful side-effect of preferring to play
-         * cards whose values are unknown (-1) but which have been deduced
-         * to be playable by CardKnowledge::update(). */
-        int best_value = 6;
-        for (int i=0; i < 4; ++i) {
-            const CardKnowledge &knol = handKnowledge_[me_][i];
-            if (knol.isPlayable && knol.value() < best_value) {
-                best_index = i;
-                best_value = knol.value();
-            }
+    int best_index = -1;
+    int best_fitness = 0;
+    for (int i=0; i < 4; ++i) {
+        if (!eyeKnol[i].isPlayable) continue;
+
+        /* How many further plays are enabled by this play?
+         * Rough heuristic: 5 minus its value. Notice that this
+         * gives an extra-high fitness to cards that are "known playable"
+         * but whose color/value is unknown (value() == -1).
+         * TODO: If both red 4s were discarded, then the red 3 doesn't open up any plays.
+         * TODO: avoid stepping on other players' plays.
+         */
+        int fitness = (6 - eyeKnol[i].value());
+        if (!handKnowledge_[me_][i].isPlayable) fitness += 100;
+        if (fitness > best_fitness) {
+            best_index = i;
+            best_fitness = fitness;
         }
     }
 
