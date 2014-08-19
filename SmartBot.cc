@@ -82,6 +82,16 @@ void CardKnowledge::setCannotBe(Hanabi::Value value)
     }
 }
 
+bool CardKnowledge::couldBePlayable(const Hanabi::Server &server) const
+{
+    if (isPlayable) return true;
+    for (Color k = RED; k <= BLUE; ++k) {
+        const int playableValue = server.pileOf(k).size() + 1;
+        if (!cantBe_[k][playableValue]) return true;
+    }
+    return false;
+}
+
 void CardKnowledge::update(const Server &server, const SmartBot &bot, bool useMyEyesight)
 {
     int color = this->color_;
@@ -663,16 +673,13 @@ bool SmartBot::maybePlayMysteryCard(Server &server)
          * At this point, we might as well try to play something random
          * and hope we get lucky. */
         for (int i=3; i >= 0; --i) {
-            const CardKnowledge &knol = handKnowledge_[me_][i];
-            assert(!knol.isPlayable);  /* or we would have played it already */
-            if (knol.isWorthless) continue;
-            if (knol.color() != -1 && knol.value() != -1) {
-                /* A known card shouldn't be playable. */
-                assert(!server.pileOf(Color(knol.color())).nextValueIs(knol.value()));
-                continue;
+            CardKnowledge eyeKnol = handKnowledge_[me_][i];
+            eyeKnol.update(server, *this, /*useMyEyesight=*/true);
+            assert(!eyeKnol.isPlayable);  /* or we would have played it already */
+            if (eyeKnol.couldBePlayable(server)) {
+                server.pleasePlay(i);
+                return true;
             }
-            server.pleasePlay(i);
-            return true;
         }
     }
     return false;

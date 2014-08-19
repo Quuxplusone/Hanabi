@@ -20,6 +20,8 @@ struct CardKnowledge {
     void setCannotBe(Hanabi::Value value);
     void update(const Hanabi::Server &server, const SmartBot &bot, bool useMyEyesight);
 
+    bool couldBePlayable(const Hanabi::Server &server) const;
+
     bool isPlayable;
     bool isValuable;
     bool isWorthless;
