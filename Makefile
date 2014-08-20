@@ -11,7 +11,7 @@ ifeq ($(OPENMP),1)
   LDFLAGS += -fopenmp
 endif
 
-all: run_BlindBot run_SimpleBot run_ValueBot run_HolmesBot run_CheatBot
+all: run_BlindBot run_SimpleBot run_ValueBot run_HolmesBot run_SmartBot run_CheatBot
 
 .PHONY clean:
 	rm -f *.o
