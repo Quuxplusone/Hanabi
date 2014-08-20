@@ -30,6 +30,8 @@ inline Color &operator++ (Color &c) { c = Color((int)c+1); return c; }
 inline Color operator++ (Color &c, int) { Color oc = c; ++c; return oc; }
 inline Value &operator++ (Value &v) { v = Value((int)v+1); return v; }
 inline Value operator++ (Value &v, int) { Value ov = v; ++v; return ov; }
+inline Value &operator-- (Value &v) { v = Value((int)v-1); return v; }
+inline Value operator-- (Value &v, int) { Value ov = v; --v; return ov; }
 
 struct Card {
     Color color;

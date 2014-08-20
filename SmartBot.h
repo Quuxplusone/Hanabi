@@ -63,6 +63,7 @@ class SmartBot : public Hanabi::Bot {
     int lowestPlayableValue_;
 
     bool isValuable(const Hanabi::Server &server, Hanabi::Card card) const;
+    bool isWorthless(const Hanabi::Server &server, Hanabi::Card card) const;
     bool couldBeValuable(const Hanabi::Server &server, const CardKnowledge &knol, int value) const;
 
     void updateEyesightCount(const Hanabi::Server &server);

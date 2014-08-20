@@ -87,7 +87,7 @@ bool CardKnowledge::couldBePlayable(const Hanabi::Server &server) const
     if (isPlayable) return true;
     for (Color k = RED; k <= BLUE; ++k) {
         const int playableValue = server.pileOf(k).size() + 1;
-        if (!cantBe_[k][playableValue]) return true;
+        if (playableValue <= 5 && !cantBe_[k][playableValue]) return true;
     }
     return false;
 }
@@ -138,7 +138,7 @@ void CardKnowledge::update(const Server &server, const SmartBot &bot, bool useMy
                 if ((played+held == total) ||
                     (isValuable && !bot.isValuable(server, Card(k,v))) ||
                     (isPlayable && !server.pileOf(k).nextValueIs(v)) ||
-                    (isWorthless && !server.pileOf(k).contains(v)))
+                    (isWorthless && !bot.isWorthless(server, Card(k,v))))
                 {
                     this->cantBe_[k][v] = true;
                     restart = true;
@@ -148,27 +148,22 @@ void CardKnowledge::update(const Server &server, const SmartBot &bot, bool useMy
         if (restart) goto repeat_loop;
     }
 
-    /* If the card is worthless, it's not valuable or playable. */
-    if (this->isWorthless) return;
-
-    if (!this->isPlayable && !this->isValuable) {
+    if (true) {
+        this->isWorthless = false;
         for (Color k = RED; k <= BLUE; ++k) {
             for (int v = 1; v <= 5; ++v) {
                 if (this->cantBe_[k][v]) continue;
-                if (!server.pileOf(k).contains(v)) {
+                if (!bot.isWorthless(server, Card(k,v))) {
                     goto mightBeUseful;
                 }
             }
         }
         this->isWorthless = true;
-        return;
       mightBeUseful:;
     }
 
-    /* Valuableness and playableness are orthogonal. */
-    assert(!this->isWorthless);
-
-    if (!this->isValuable) {
+    if (true) {
+        this->isValuable = false;
         for (Color k = RED; k <= BLUE; ++k) {
             for (int v = 1; v <= 5; ++v) {
                 if (this->cantBe_[k][v]) continue;
@@ -181,7 +176,8 @@ void CardKnowledge::update(const Server &server, const SmartBot &bot, bool useMy
       mightNotBeValuable:;
     }
 
-    if (!this->isPlayable) {
+    if (true) {
+        this->isPlayable = false;
         for (Color k = RED; k <= BLUE; ++k) {
             for (int v = 1; v <= 5; ++v) {
                 if (this->cantBe_[k][v]) continue;
@@ -193,6 +189,9 @@ void CardKnowledge::update(const Server &server, const SmartBot &bot, bool useMy
         this->isPlayable = true;
       mightBeUnplayable:;
     }
+
+    if (isWorthless) assert(!isValuable);
+    if (isWorthless) assert(!isPlayable);
 }
 
 Hint::Hint()
@@ -225,12 +224,26 @@ SmartBot::SmartBot(int index, int numPlayers)
     std::memset(playedCount_, '\0', sizeof playedCount_);
 }
 
+bool SmartBot::isWorthless(const Server &server, Card card) const
+{
+    int playableValue = server.pileOf(card.color).size() + 1;
+    if (card.value < playableValue) return true;
+#if 0
+    /* If all the red 4s are in the discard pile, then the red 5 is worthless. */
+    while (card.value > playableValue) {
+        --card.value;
+        if (playedCount_[card.color][card.value] == card.count()) return true;
+    }
+#endif
+    return false;
+}
+
 bool SmartBot::isValuable(const Server &server, Card card) const
 {
     /* A card which has not yet been played, and which is the
      * last of its kind, is valuable. */
-    if (server.pileOf(card.color).contains(card.value)) return false;
-    return (playedCount_[card.color][card.value] == card.count()-1);
+    if (playedCount_[card.color][card.value] != card.count()-1) return false;
+    return !this->isWorthless(server, card);
 }
 
 bool SmartBot::couldBeValuable(const Server &server, const CardKnowledge &knol, int value) const
@@ -382,7 +395,7 @@ void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
         CardKnowledge &knol = handKnowledge_[to][i];
         if (vector_contains(card_indices, i)) {
             knol.setMustBe(color);
-            if (!knol.isWorthless && !knol.cannotBe(Card(color, playableValue))) {
+            if (playableValue <= 5 && !knol.cannotBe(Card(color, playableValue))) {
                 knol.setMustBe(Value(playableValue));
             }
         } else {
@@ -458,9 +471,8 @@ void SmartBot::wipeOutPlayables(const Card &card)
     for (int player = 0; player < numPlayers; ++player) {
         for (int c = 0; c < 4; ++c) {
             CardKnowledge &knol = handKnowledge_[player][c];
-            if (!knol.isPlayable) continue;
-            if (knol.isValuable) continue;
             if (knol.cannotBe(card)) continue;
+            if (knol.isValuable) continue;
             /* This card might or might not be playable, anymore. */
             knol.isPlayable = false;
         }
@@ -548,7 +560,7 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
             if (partners_hand[c].color != color) continue;
             if (is_really_playable[c] && !knol.isPlayable) {
                 information_content += 1;
-            } else if (!is_really_playable[c] && !knol.isWorthless && !knol.cannotBe(Card(color, playableValue))) {
+            } else if (!is_really_playable[c] && playableValue <= 5 && !knol.cannotBe(Card(color, playableValue))) {
                 misinformative = true;
                 break;
             }
@@ -677,6 +689,7 @@ bool SmartBot::maybePlayMysteryCard(Server &server)
             eyeKnol.update(server, *this, /*useMyEyesight=*/true);
             assert(!eyeKnol.isPlayable);  /* or we would have played it already */
             if (eyeKnol.couldBePlayable(server)) {
+                assert(!eyeKnol.isWorthless);
                 server.pleasePlay(i);
                 return true;
             }

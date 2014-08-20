@@ -42,8 +42,8 @@ static std::string colorname(Hanabi::Color color)
 
 namespace Hanabi {
 
-Card::Card(Color c, Value v): color(c), value(v) { }
-Card::Card(Color c, int v): color(c), value(Value(v)) { }
+Card::Card(Color c, Value v): color(c), value(v) { assert(1 <= value && value <= 5); }
+Card::Card(Color c, int v): color(c), value(Value(v)) { assert(1 <= value && value <= 5); }
 
 int Card::count() const
 {
