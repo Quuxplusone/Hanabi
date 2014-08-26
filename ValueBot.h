@@ -43,19 +43,19 @@ class ValueBot : public Hanabi::Bot {
     int cardCount_[Hanabi::NUMCOLORS][5+1];
 
     /* Returns the lowest value of card that is currently playable. */
-    Hanabi::Value lowestPlayableValue() const;
+    int lowestPlayableValue() const;
 
     bool couldBeValuable(int value) const;
 
     void invalidateKnol(int player_index, int card_index);
     void seePublicCard(const Hanabi::Card &played_card);
-    void wipeOutPlayables(const Hanabi::Card &played_card);
-    void makeThisValueWorthless(Hanabi::Value value);
+    void wipeOutPlayables(const Hanabi::Server &server, const Hanabi::Card &played_card);
+    void makeThisValueWorthless(const Hanabi::Server &server, Hanabi::Value value);
 
     /* Returns -1 if the named player is planning to play a card on his
      * turn, or if all his cards are known to be valuable. Otherwise,
      * returns the index of his oldest not-known-valuable card. */
-    int nextDiscardIndex(int player) const;
+    int nextDiscardIndex(const Hanabi::Server &server, int player) const;
 
     Hint bestHintForPlayer(const Hanabi::Server &server, int to) const;
 

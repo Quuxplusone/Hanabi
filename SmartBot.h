@@ -67,7 +67,7 @@ class SmartBot : public Hanabi::Bot {
     bool couldBeValuable(const Hanabi::Server &server, const CardKnowledge &knol, int value) const;
 
     void updateEyesightCount(const Hanabi::Server &server);
-    bool updateLocatedCount();
+    bool updateLocatedCount(const Hanabi::Server &server);
     void invalidateKnol(int player_index, int card_index);
     void seePublicCard(const Hanabi::Card &played_card);
     void wipeOutPlayables(const Hanabi::Card &played_card);
@@ -75,7 +75,7 @@ class SmartBot : public Hanabi::Bot {
     /* Returns -1 if the named player is planning to play a card on his
      * turn, or if all his cards are known to be valuable. Otherwise,
      * returns the index of his oldest not-known-valuable card. */
-    int nextDiscardIndex(int player) const;
+    int nextDiscardIndex(const Hanabi::Server &server, int player) const;
 
     Hint bestHintForPlayer(const Hanabi::Server &server, int to) const;
 

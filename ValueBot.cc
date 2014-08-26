@@ -91,16 +91,16 @@ ValueBot::ValueBot(int index, int numPlayers)
     }
 }
 
-Value ValueBot::lowestPlayableValue() const
+int ValueBot::lowestPlayableValue() const
 {
     for (int v = 1; v <= 5; ++v) {
         for (Color k = RED; k <= BLUE; ++k) {
-            if (cardCount_[k][v] != -1) return Value(v);
+            if (cardCount_[k][v] != -1) return v;
         }
     }
 
     /* In this case, even 5s are not playable; the game must be over! */
-    assert(false);
+    return 6;
 }
 
 bool ValueBot::couldBeValuable(int value) const
@@ -132,11 +132,11 @@ void ValueBot::seePublicCard(const Card &card)
     assert(1 <= entry && entry <= card.count());
 }
 
-void ValueBot::makeThisValueWorthless(Value value)
+void ValueBot::makeThisValueWorthless(const Hanabi::Server &server, Value value)
 {
     const int numPlayers = handKnowledge_.size();
     for (int player = 0; player < numPlayers; ++player) {
-        for (int index = 0; index < 4; ++index) {
+        for (int index = 0; index < server.sizeOfHandOfPlayer(player); ++index) {
             CardKnowledge &knol = handKnowledge_[player][index];
             if (knol.mustBe(value)) {
                 assert(!knol.isValuable);
@@ -175,13 +175,13 @@ void ValueBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, i
     if (server.pileOf(card.color).nextValueIs(card.value)) {
         /* This card is getting played, not discarded. */
         if (this->cardCount_[card.color][card.value] != card.count()-1) {
-            this->wipeOutPlayables(card);
+            this->wipeOutPlayables(server, card);
         }
         this->cardCount_[card.color][card.value] = -1;  /* we no longer care about it */
         if (lowestPlayableValue() > card.value) {
             /* A whole bunch of cards just dropped below the "lowest playable value"
              * rank. Mark them as unplayable. */
-            this->makeThisValueWorthless(card.value);
+            this->makeThisValueWorthless(server, card.value);
         }
     } else {
         this->seePublicCard(card);
@@ -222,13 +222,14 @@ void ValueBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
     }
 }
 
-int ValueBot::nextDiscardIndex(int to) const
+int ValueBot::nextDiscardIndex(const Hanabi::Server& server, int to) const
 {
-    for (int i=0; i < 4; ++i) {
+    int numCards = server.sizeOfHandOfPlayer(to);
+    for (int i=0; i < numCards; ++i) {
         if (handKnowledge_[to][i].isPlayable) return -1;
         if (handKnowledge_[to][i].isWorthless) return -1;
     }
-    for (int i=0; i < 4; ++i) {
+    for (int i=0; i < numCards; ++i) {
         if (!handKnowledge_[to][i].isValuable) return i;
     }
     return -1;
@@ -243,8 +244,8 @@ void ValueBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
      * then this must be a warning that that card is valuable.
      * Otherwise, all the named cards are playable. */
 
-    const int discardIndex = this->nextDiscardIndex(to);
-    const Value lowestValue = lowestPlayableValue();
+    const int discardIndex = this->nextDiscardIndex(server, to);
+    const int lowestValue = lowestPlayableValue();
     const bool isPointless = (value < lowestValue);
     const bool isWarning = couldBeValuable(value) && vector_contains(card_indices, discardIndex);
 
@@ -277,11 +278,11 @@ void ValueBot::pleaseObserveAfterMove(const Hanabi::Server &server)
     assert(server.whoAmI() == me_);
 }
 
-void ValueBot::wipeOutPlayables(const Card &played_card)
+void ValueBot::wipeOutPlayables(const Hanabi::Server &server, const Card &played_card)
 {
     const int numPlayers = handKnowledge_.size();
     for (int player = 0; player < numPlayers; ++player) {
-        for (int c = 0; c < 4; ++c) {
+        for (int c = 0; c < server.sizeOfHandOfPlayer(player); ++c) {
             CardKnowledge &knol = handKnowledge_[player][c];
             if (!knol.isPlayable) continue;
             if (knol.mustBe(Value(5))) continue;
@@ -335,7 +336,7 @@ Hint ValueBot::bestHintForPlayer(const Server &server, int partner) const
     const std::vector<Card> partners_hand = server.handOfPlayer(partner);
 
     bool is_really_playable[4];
-    for (int c=0; c < 4; ++c) {
+    for (int c=0; c < partners_hand.size(); ++c) {
         is_really_playable[c] =
             server.pileOf(partners_hand[c].color).nextValueIs(partners_hand[c].value);
     }
@@ -349,7 +350,7 @@ Hint ValueBot::bestHintForPlayer(const Server &server, int partner) const
     for (Color color = RED; color <= BLUE; ++color) {
         int information_content = 0;
         bool misinformative = false;
-        for (int c=0; c < 4; ++c) {
+        for (int c=0; c < partners_hand.size(); ++c) {
             const CardKnowledge &knol = handKnowledge_[partner][c];
             if (partners_hand[c].color != color) continue;
             if (is_really_playable[c] && !knol.isPlayable) {
@@ -368,7 +369,7 @@ Hint ValueBot::bestHintForPlayer(const Server &server, int partner) const
     }
 
     /* Avoid giving hints that could be misinterpreted as warnings. */
-    const int discardIndex = nextDiscardIndex(partner);
+    const int discardIndex = nextDiscardIndex(server, partner);
     int valueToAvoid = -1;
     if (discardIndex != -1) {
         valueToAvoid = partners_hand[discardIndex].value;
@@ -379,7 +380,7 @@ Hint ValueBot::bestHintForPlayer(const Server &server, int partner) const
         if (value == valueToAvoid) continue;
         int information_content = 0;
         bool misinformative = false;
-        for (int c=0; c < 4; ++c) {
+        for (int c=0; c < partners_hand.size(); ++c) {
             if (partners_hand[c].value != value) continue;
             if (is_really_playable[c] &&
                 !handKnowledge_[partner][c].isPlayable)
@@ -410,7 +411,7 @@ bool ValueBot::maybeGiveValuableWarning(Server &server)
 
     /* Is the player to our left just about to discard a card
      * that is really valuable? */
-    int discardIndex = this->nextDiscardIndex(player_to_warn);
+    int discardIndex = this->nextDiscardIndex(server, player_to_warn);
     if (discardIndex == -1) return false;
     Card targetCard = server.handOfPlayer(player_to_warn)[discardIndex];
     if (cardCount_[targetCard.color][targetCard.value] != targetCard.count()-1) {

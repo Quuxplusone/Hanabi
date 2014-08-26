@@ -88,7 +88,7 @@ Server::Server(): activeCard_(RED,1), log_(NULL) { }
 bool Server::gameOver() const
 {
     /* The game ends if there are no more cards to draw... */
-    if (this->deck_.empty()) return true;
+    if (this->deck_.empty() && finalCountdown_ == numPlayers_+1) return true;
     /* ...no more mulligans available... */
     if (this->mulligansRemaining_ == 0) return true;
     /* ...or if the piles are all complete. */
@@ -117,6 +117,7 @@ void Server::setLog(std::ostream *logStream)
 int Server::runGame(const BotFactory &botFactory, int numPlayers)
 {
     /* Create and initialize the bots. */
+    numPlayers_ = numPlayers;
     players_.resize(numPlayers);
     for (int i=0; i < numPlayers; ++i) {
         players_[i] = botFactory.create(i, numPlayers);
@@ -129,6 +130,7 @@ int Server::runGame(const BotFactory &botFactory, int numPlayers)
     }
     mulligansRemaining_ = NUMMULLIGANS;
     hintStonesRemaining_ = NUMHINTS;
+    finalCountdown_ = 0;
 
     /* Shuffle the deck. */
     deck_.clear();
@@ -171,6 +173,8 @@ int Server::runGame(const BotFactory &botFactory, int numPlayers)
             players_[i]->pleaseObserveAfterMove(*this);
         }
         activePlayer_ = (activePlayer_ + 1) % numPlayers;
+        assert(0 <= finalCountdown_ && finalCountdown_ <= numPlayers);
+        if (deck_.empty()) finalCountdown_ += 1;
     }
 
     for (int i=0; i < numPlayers; ++i) {
@@ -180,9 +184,14 @@ int Server::runGame(const BotFactory &botFactory, int numPlayers)
     return this->currentScore();
 }
 
+int Server::numPlayers() const
+{
+    return numPlayers_;
+}
+
 int Server::whoAmI() const
 {
-    assert(0 <= observingPlayer_ && observingPlayer_ < players_.size());
+    assert(0 <= observingPlayer_ && observingPlayer_ < numPlayers_);
     return observingPlayer_;
 }
 
@@ -191,10 +200,16 @@ int Server::activePlayer() const
     return activePlayer_;
 }
 
+int Server::sizeOfHandOfPlayer(int player) const
+{
+    if (player < 0 || numPlayers_ <= player) throw std::runtime_error("player index out of bounds");
+    return hands_[player].size();
+}
+
 std::vector<Card> Server::handOfPlayer(int player) const
 {
     if (player == observingPlayer_) throw std::runtime_error("cannot observe own hand");
-    if (player < 0 || hands_.size() <= player) throw std::runtime_error("player index out of bounds");
+    if (player < 0 || numPlayers_ <= player) throw std::runtime_error("player index out of bounds");
     return hands_[player];
 }
 
@@ -247,9 +262,10 @@ int Server::cardsRemainingInDeck() const
 
 Card Server::pleaseDiscard(int index)
 {
-    assert(0 <= activePlayer_ && activePlayer_ < hands_.size());
+    assert(0 <= activePlayer_ && activePlayer_ < numPlayers_);
     if (activePlayerHasMoved_) throw std::runtime_error("bot attempted to move twice");
     if (index < 0 || hands_[activePlayer_].size() <= index) throw std::runtime_error("invalid card index");
+    // if (hintStonesRemaining_ == NUMHINTS) throw std::runtime_error("all hint stones are already available");
 
     Card discardedCard = hands_[activePlayer_][index];
     activeCard_ = discardedCard;
@@ -257,7 +273,7 @@ Card Server::pleaseDiscard(int index)
 
     /* Notify all the players of the discard (before it happens). */
     int oldObservingPlayer = observingPlayer_;
-    for (int i=0; i < players_.size(); ++i) {
+    for (int i=0; i < numPlayers_; ++i) {
         observingPlayer_ = i;
         players_[i]->pleaseObserveBeforeDiscard(*this, activePlayer_, index);
     }
@@ -267,35 +283,26 @@ Card Server::pleaseDiscard(int index)
     /* Discard the selected card. */
     discards_.push_back(discardedCard);
 
-    /* Shift the old cards down, and draw a replacement. */
-    for (int i = index; i+1 < hands_[activePlayer_].size(); ++i) {
-        hands_[activePlayer_][i] = hands_[activePlayer_][i+1];
-    }
-    Card replacementCard = this->draw_();
-    hands_[activePlayer_].back() = replacementCard;
-
-    /* Regain a hint-stone, if possible. */
-    bool regainedHintStone = false;
-    if (hintStonesRemaining_ < NUMHINTS) {
-        ++hintStonesRemaining_;
-        regainedHintStone = true;
-    }
-
-    activePlayerHasMoved_ = true;
-
     if (log_) {
         (*log_) << "Player " << activePlayer_
                 << " discarded his " << nth(index)
                 << " card (" << discardedCard.toString() << ").\n";
-        (*log_) << "Player " << activePlayer_
-                << " drew a replacement (" << replacementCard.toString() << ").\n";
-        if (regainedHintStone) {
+    }
+
+    /* Shift the old cards down, and draw a replacement if possible. */
+    hands_[activePlayer_].erase(hands_[activePlayer_].begin() + index);
+
+    if (mulligansRemaining_ > 0 && !deck_.empty()) {
+        Card replacementCard = this->draw_();
+        hands_[activePlayer_].push_back(replacementCard);
+        if (log_) {
             (*log_) << "Player " << activePlayer_
-                    << " returned a hint stone; there "
-                    << ((hintStonesRemaining_ == 1) ? "is" : "are") << " now "
-                    << hintStonesRemaining_ << " remaining.\n";
+                    << " drew a replacement (" << replacementCard.toString() << ").\n";
         }
     }
+
+    regainHintStoneIfPossible_();
+    activePlayerHasMoved_ = true;
 
     return discardedCard;
 }
@@ -325,47 +332,42 @@ Card Server::pleasePlay(int index)
     bool success = false;
 
     if (pile.nextValueIs(selectedCard.value)) {
-        pile.increment_();
-        success = true;
-    } else {
-        /* The card was unplayable! */
-        discards_.push_back(selectedCard);
-        --mulligansRemaining_;
-        assert(mulligansRemaining_ >= 0);
-    }
-
-    /* Shift the old cards down, and draw a replacement. */
-    for (int i = index; i+1 < hands_[activePlayer_].size(); ++i) {
-        hands_[activePlayer_][i] = hands_[activePlayer_][i+1];
-    }
-    Card replacementCard = this->draw_();
-    hands_[activePlayer_].back() = replacementCard;
-
-    activePlayerHasMoved_ = true;
-
-    if (log_) {
-        if (success) {
+        if (log_) {
             (*log_) << "Player " << activePlayer_
                     << " played his " << nth(index)
                     << " card (" << selectedCard.toString() << ").\n";
-        } else {
+        }
+        pile.increment_();
+        if (selectedCard.value == 5) {
+            /* Successfully playing a 5 regains a hint stone. */
+            regainHintStoneIfPossible_();
+        }
+        success = true;
+    } else {
+        /* The card was unplayable! */
+        if (log_) {
             (*log_) << "Player " << activePlayer_
                     << " tried to play his " << nth(index)
                     << " card (" << selectedCard.toString() << ")"
                     << " but failed.\n";
-            if (mulligansRemaining_ == 0) {
-                (*log_) << "That was the last mulligan.\n";
-            } else if (mulligansRemaining_ == 1) {
-                (*log_) << "There is only one mulligan remaining.\n";
-            } else {
-                (*log_) << "There are " << mulligansRemaining_ << " mulligans remaining.\n";
-            }
         }
-        if (mulligansRemaining_ != 0) {
+        discards_.push_back(selectedCard);
+        loseMulligan_();
+    }
+
+    /* Shift the old cards down, and draw a replacement if possible. */
+    hands_[activePlayer_].erase(hands_[activePlayer_].begin() + index);
+
+    if (mulligansRemaining_ > 0 && !deck_.empty()) {
+        Card replacementCard = this->draw_();
+        hands_[activePlayer_].push_back(replacementCard);
+        if (log_) {
             (*log_) << "Player " << activePlayer_
                     << " drew a replacement (" << replacementCard.toString() << ").\n";
         }
     }
+
+    activePlayerHasMoved_ = true;
 
     return selectedCard;
 }
@@ -459,6 +461,34 @@ void Server::pleaseGiveValueHint(int to, Value value)
     activePlayerHasMoved_ = true;
 }
 
+void Server::regainHintStoneIfPossible_()
+{
+    if (hintStonesRemaining_ < NUMHINTS) {
+        ++hintStonesRemaining_;
+        if (log_) {
+            (*log_) << "Player " << activePlayer_
+                    << " returned a hint stone; there "
+                    << ((hintStonesRemaining_ == 1) ? "is" : "are") << " now "
+                    << hintStonesRemaining_ << " remaining.\n";
+        }
+    }
+}
+
+void Server::loseMulligan_()
+{
+    --mulligansRemaining_;
+    assert(mulligansRemaining_ >= 0);
+    if (log_) {
+        if (mulligansRemaining_ == 0) {
+            (*log_) << "That was the last mulligan.\n";
+        } else if (mulligansRemaining_ == 1) {
+            (*log_) << "There is only one mulligan remaining.\n";
+        } else {
+            (*log_) << "There are " << mulligansRemaining_ << " mulligans remaining.\n";
+        }
+    }
+}
+
 Card Server::draw_()
 {
     assert(!deck_.empty());
@@ -471,12 +501,10 @@ void Server::logHands_()
 {
     if (log_) {
         (*log_) << "Current hands:";
-        for (int i=0; i < hands_.size(); ++i) {
-            assert(hands_[i].size() == 4);
-            (*log_) << " " << hands_[i][0].toString()
-                    << "," << hands_[i][1].toString()
-                    << "," << hands_[i][2].toString()
-                    << "," << hands_[i][3].toString();
+        for (int i=0; i < numPlayers_; ++i) {
+            for (int j=0; j < (int)hands_[i].size(); ++j) {
+                (*log_) << (j ? "," : " ") << hands_[i][j].toString();
+            }
         }
         (*log_) << "\n";
     }

@@ -176,7 +176,7 @@ bool SimpleBot::maybeGiveHelpfulHint(Server &server)
         assert(partner != me_);
         const std::vector<Card> partners_hand = server.handOfPlayer(partner);
         bool is_really_playable[4];
-        for (int c=0; c < 4; ++c) {
+        for (int c=0; c < partners_hand.size(); ++c) {
             is_really_playable[c] =
                 server.pileOf(partners_hand[c].color).nextValueIs(partners_hand[c].value);
         }
@@ -186,7 +186,7 @@ bool SimpleBot::maybeGiveHelpfulHint(Server &server)
         for (Color color = RED; color <= BLUE; ++color) {
             int information_content = 0;
             bool misinformative = false;
-            for (int c=0; c < 4; ++c) {
+            for (int c=0; c < partners_hand.size(); ++c) {
                 if (partners_hand[c].color != color) continue;
                 if (is_really_playable[c] &&
                     !handKnowledge_[partner][c].isPlayable)
@@ -209,7 +209,7 @@ bool SimpleBot::maybeGiveHelpfulHint(Server &server)
         for (int value = 1; value <= 5; ++value) {
             int information_content = 0;
             bool misinformative = false;
-            for (int c=0; c < 4; ++c) {
+            for (int c=0; c < partners_hand.size(); ++c) {
                 if (partners_hand[c].value != value) continue;
                 if (is_really_playable[c] &&
                     !handKnowledge_[partner][c].isPlayable)

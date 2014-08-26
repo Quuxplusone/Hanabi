@@ -30,7 +30,7 @@ static int visibleCopiesOf(Card card)
 {
     int result = 0;
     for (int p=0; p < hands.size(); ++p) {
-        for (int i=0; i < 4; ++i) {
+        for (int i=0; i < hands[p].size(); ++i) {
             result += (hands[p][i] == card);
         }
     }
@@ -71,15 +71,7 @@ void CheatBot::pleaseObserveAfterMove(const Server &) { }
 bool CheatBot::maybeEnablePlay(Server &server, int plus)
 {
     const int partner = (me_ + plus) % numPlayers;
-    if (partner == me_) return false;
-
-    /* If my partner already has a play, he doesn't need to be
-     * rescued. */
-    for (int i=0; i < 4; ++i) {
-        Card card = hands[partner][i];
-        if (server.pileOf(card.color).nextValueIs(card.value))
-            return false;
-    }
+    assert(partner != me_);
 
     int lowest_value = 5;
     int best_index = -1;
@@ -134,7 +126,7 @@ bool CheatBot::maybePlayLowestPlayableCard(Server &server)
 static bool noPlayableCardsVisible(const Server &server)
 {
     for (int p=0; p < hands.size(); ++p) {
-        for (int i=0; i < 4; ++i) {
+        for (int i=0; i < hands[p].size(); ++i) {
             Card card = hands[p][i];
             if (server.pileOf(card.color).nextValueIs(card.value)) {
                 return false;
@@ -263,9 +255,9 @@ void CheatBot::pleaseMakeMove(Server &server)
     }
 
     /* This heuristic isn't very scientifically motivated. */
-    static const int tempo[] = {
+    static const int tempo[NUMHINTS+1] = {
         0, 1, 2, 3,
-        4, 5, 8, 25
+        4, 5, 8, 25, 25
     };
     const bool shouldTemporizeEarly = (stillToGo <= tempo[server.hintStonesRemaining()]);
 

@@ -283,7 +283,7 @@ void SmartBot::updateEyesightCount(const Server &server)
     const int numPlayers = handKnowledge_.size();
     for (int p=0; p < numPlayers; ++p) {
         if (p == me_) {
-            for (int i=0; i < 4; ++i) {
+            for (int i=0; i < server.sizeOfHandOfPlayer(me_); ++i) {
                 CardKnowledge &knol = handKnowledge_[p][i];
                 if (knol.color() != -1 && knol.value() != -1) {
                     this->eyesightCount_[knol.color()][knol.value()] += 1;
@@ -291,7 +291,7 @@ void SmartBot::updateEyesightCount(const Server &server)
             }
         } else {
             const std::vector<Card> hand = server.handOfPlayer(p);
-            for (int i=0; i < 4; ++i) {
+            for (int i=0; i < hand.size(); ++i) {
                 const Card &card = hand[i];
                 this->eyesightCount_[card.color][card.value] += 1;
             }
@@ -299,12 +299,12 @@ void SmartBot::updateEyesightCount(const Server &server)
     }
 }
 
-bool SmartBot::updateLocatedCount()
+bool SmartBot::updateLocatedCount(const Hanabi::Server &server)
 {
     int newCount[Hanabi::NUMCOLORS][5+1] = {};
 
     for (int p=0; p < handKnowledge_.size(); ++p) {
-        for (int i=0; i < 4; ++i) {
+        for (int i=0; i < server.sizeOfHandOfPlayer(p); ++i) {
             CardKnowledge &knol = handKnowledge_[p][i];
             int k = knol.color();
             if (k != -1) {
@@ -328,15 +328,16 @@ void SmartBot::pleaseObserveBeforeMove(const Server &server)
     assert(server.whoAmI() == me_);
 
     std::memset(this->locatedCount_, '\0', sizeof this->locatedCount_);
-    this->updateLocatedCount();
+    this->updateLocatedCount(server);
     do {
         for (int p=0; p < handKnowledge_.size(); ++p) {
-            for (int i=0; i < 4; ++i) {
+            const int numCards = server.sizeOfHandOfPlayer(p);
+            for (int i=0; i < numCards; ++i) {
                 CardKnowledge &knol = handKnowledge_[p][i];
                 knol.update(server, *this, false);
             }
         }
-    } while (this->updateLocatedCount());
+    } while (this->updateLocatedCount(server));
 
     this->updateEyesightCount(server);
 
@@ -391,7 +392,7 @@ void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
 
     const int playableValue = server.pileOf(color).size() + 1;
 
-    for (int i=0; i < 4; ++i) {
+    for (int i=0; i < server.sizeOfHandOfPlayer(to); ++i) {
         CardKnowledge &knol = handKnowledge_[to][i];
         if (vector_contains(card_indices, i)) {
             knol.setMustBe(color);
@@ -404,13 +405,14 @@ void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
     }
 }
 
-int SmartBot::nextDiscardIndex(int to) const
+int SmartBot::nextDiscardIndex(const Hanabi::Server &server, int to) const
 {
-    for (int i=0; i < 4; ++i) {
+    const int numCards = server.sizeOfHandOfPlayer(to);
+    for (int i=0; i < numCards; ++i) {
         if (handKnowledge_[to][i].isPlayable) return -1;
         if (handKnowledge_[to][i].isWorthless) return -1;
     }
-    for (int i=0; i < 4; ++i) {
+    for (int i=0; i < numCards; ++i) {
         if (!handKnowledge_[to][i].isValuable) return i;
     }
     return -1;
@@ -425,7 +427,7 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
      * then this must be a warning that that card is valuable.
      * Otherwise, all the named cards are playable. */
 
-    const int discardIndex = this->nextDiscardIndex(to);
+    const int discardIndex = this->nextDiscardIndex(server, to);
     const bool isPointless = (value < lowestPlayableValue_);
     const bool isWarning =
         (to == (from + 1) % handKnowledge_.size()) &&
@@ -447,7 +449,8 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
         }
     }
 
-    for (int i=0; i < 4; ++i) {
+    const int numCards = server.sizeOfHandOfPlayer(to);
+    for (int i=0; i < numCards; ++i) {
         CardKnowledge &knol = handKnowledge_[to][i];
         if (vector_contains(card_indices, i)) {
             knol.setMustBe(value);
@@ -540,7 +543,7 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
     const std::vector<Card> partners_hand = server.handOfPlayer(partner);
 
     bool is_really_playable[4];
-    for (int c=0; c < 4; ++c) {
+    for (int c=0; c < partners_hand.size(); ++c) {
         is_really_playable[c] =
             server.pileOf(partners_hand[c].color).nextValueIs(partners_hand[c].value);
     }
@@ -555,7 +558,7 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
         const int playableValue = server.pileOf(color).size() + 1;
         int information_content = 0;
         bool misinformative = false;
-        for (int c=0; c < 4; ++c) {
+        for (int c=0; c < partners_hand.size(); ++c) {
             const CardKnowledge &knol = handKnowledge_[partner][c];
             if (partners_hand[c].color != color) continue;
             if (is_really_playable[c] && !knol.isPlayable) {
@@ -576,7 +579,7 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
     /* Avoid giving hints that could be misinterpreted as warnings. */
     int valueToAvoid = -1;
     if (partner == (me_ + 1) % handKnowledge_.size()) {
-        const int discardIndex = nextDiscardIndex(partner);
+        const int discardIndex = nextDiscardIndex(server, partner);
         if (discardIndex != -1) {
             const CardKnowledge &knol = handKnowledge_[partner][discardIndex];
             valueToAvoid = partners_hand[discardIndex].value;
@@ -588,11 +591,10 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
         if (value == valueToAvoid) continue;
         int information_content = 0;
         bool misinformative = false;
-        for (int c=0; c < 4; ++c) {
+        for (int c=0; c < partners_hand.size(); ++c) {
             const CardKnowledge &knol = handKnowledge_[partner][c];
             if (partners_hand[c].value != value) continue;
-            if (is_really_playable[c] && !knol.isPlayable)
-            {
+            if (is_really_playable[c] && !knol.isPlayable) {
                 information_content += 1;
             } else if (!is_really_playable[c] && (knol.color() == -1 && !knol.isWorthless)) {
                 misinformative = true;
@@ -617,7 +619,7 @@ bool SmartBot::maybeGiveValuableWarning(Server &server)
 
     /* Is the player to our left just about to discard a card
      * that is really valuable? */
-    int discardIndex = this->nextDiscardIndex(player_to_warn);
+    int discardIndex = this->nextDiscardIndex(server, player_to_warn);
     if (discardIndex == -1) return false;
     Card targetCard = server.handOfPlayer(player_to_warn)[discardIndex];
     if (!this->isValuable(server, targetCard)) {
@@ -677,7 +679,7 @@ bool SmartBot::maybePlayMysteryCard(Server &server)
 {
     if (!UseMulligans) return false;
 
-    const int table[4] = { -99, 1, 2, 3 };
+    const int table[4] = { -99, 1, 1, 2 };
     if (server.cardsRemainingInDeck() <= table[server.mulligansRemaining()]) {
         /* We could temporize, or we could do something that forces us to
          * draw a card. If we got here, temporizing has been rejected as

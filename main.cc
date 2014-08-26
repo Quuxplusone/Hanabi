@@ -10,6 +10,7 @@
 #include <cassert>
 #include <cstdlib>
 #include <ctime>
+#include <stdexcept>
 #include "Hanabi.h"
 #include stringify(BOTNAME.h)  /* This isn't really Standard-conforming. */
 #include "BotFactory.h"
@@ -36,7 +37,13 @@ static void run_iterations(int numberOfPlayers, int iterations, Statistics &glob
     Statistics local_stats = {};
 
     for (int i=0; i < iterations; ++i) {
-        int score = server.runGame(botFactory, numberOfPlayers);
+        int score;
+        try {
+            score = server.runGame(botFactory, numberOfPlayers);
+        } catch (const std::runtime_error& e) {
+            std::cout << "Caught fatal exception \"" << e.what() << "\" from Hanabi server" << std::endl;
+            std::exit(EXIT_FAILURE);
+        }
         assert(score == server.currentScore());
         assert(0 <= server.mulligansUsed() && server.mulligansUsed() <= 3);
         local_stats.totalScore += score;

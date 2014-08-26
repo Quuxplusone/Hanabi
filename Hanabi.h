@@ -23,7 +23,7 @@ const int NUMCOLORS = 5;
 /* Bots may assume that these correspond to their integer values. */
 typedef enum { ONE=1, TWO, THREE, FOUR, FIVE } Value;
 
-const int NUMHINTS = 7;
+const int NUMHINTS = 8;
 const int NUMMULLIGANS = 3;
 
 inline Color &operator++ (Color &c) { c = Color((int)c+1); return c; }
@@ -74,6 +74,9 @@ struct Server {
      * run the game to its conclusion, and return the final score. */
     int runGame(const BotFactory &botFactory, int numPlayers);
 
+    /* Returns the number of players in the game. */
+    int numPlayers() const;
+
     /* Returns the index of the player who is currently
      * querying the server. */
     int whoAmI() const;
@@ -82,6 +85,9 @@ struct Server {
      * Players are numbered around to the left. The first
      * player to take a turn is player number 0. */
     int activePlayer() const;
+
+    /* Returns the number of cards in some player's hand. */
+    int sizeOfHandOfPlayer(int player) const;
 
     /* Returns a vector of the cards in some player's hand.
      * Throws an exception if a player tries to look at his own hand,
@@ -134,7 +140,9 @@ struct Server {
     /* Try to discard the card at the given index in
      * the active player's hand. This action invariably
      * succeeds. The other cards will be shifted down
-     * (toward index 0) and a new card drawn into index 3.
+     * (toward index 0) and a new card drawn into index 3,
+     * unless no cards remain in the draw pile, in which
+     * case the player's new hand will have only 3 cards.
      * Adds a hint-stone back to the pool, if possible.
      * Returns the identity of the discarded card.
      */
@@ -144,7 +152,9 @@ struct Server {
      * may succeed (incrementing the appropriate pile) or fail
      * (adding the selected card to the end of server.discards()).
      * In either case, the other cards will be shifted down
-     * and a new card drawn into index 3.
+     * and a new card drawn into index 3, unless no cards
+     * remain in the draw pile, in which case the player's
+     * new hand will have only 3 cards.
      * Returns the identity of the played/discarded card.
      * If you want to know whether the play was successful,
      * just examine server.mulligansRemaining() before and
@@ -173,7 +183,9 @@ private:
     bool activePlayerHasMoved_;
     Card activeCard_;
     bool activeCardIsObservable_;
+    int finalCountdown_;
     /* Basically-public state */
+    int numPlayers_;
     Pile piles_[NUMCOLORS];
     std::vector<Card> discards_;
     int hintStonesRemaining_;
@@ -184,6 +196,8 @@ private:
 
     /* Private methods */
     Card draw_(void);
+    void regainHintStoneIfPossible_(void);
+    void loseMulligan_(void);
     void logHands_(void);
 };
 

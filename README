@@ -1,7 +1,11 @@
 This is a framework for writing bots that play Hanabi.
 http://boardgamegeek.com/boardgame/98778/hanabi
+http://www.rnrgames.com/images/ProductRules/hanabiRules.PDF
 
-It is very much a work in progress.
+The framework does not (yet!) respect the following rule of Hanabi:
+- Discarding is not allowed when all hint stones are available.
+All the other rules should now be supported.
+
 
 Typing "make" will build all of the bots that the Makefile knows about.
 
@@ -11,20 +15,18 @@ enabling parallel processing with OpenMP, unless you also pass OPENMP=0.
 ./run_BlindBot
   (blindly plays a random card each time: avg score 1.26-)
 ./run_SimpleBot
-  (hints about playable cards: avg score 17.89-)
+  (hints about playable cards: avg score 18.74-)
 ./run_ValueBot
-  (also warns about valuable cards: avg score 18.58+)
+  (also warns about valuable cards: avg score 20.43+)
 ./run_HolmesBot
-  (also performs inferences: avg score 19.51+, or 19.56+ using mulligans)
+  (also performs inferences: avg score 21.53+, or 21.69- using mulligans)
 ./run_SmartBot
-  (prefers to play cards its partners don't know it knows: avg score 19.78+, or 19.87+ using mulligans)
+  (prefers to play cards its partners don't know it knows: avg score 21.78+, or 21.98+ using mulligans)
 ./run_CheatBot
-  (secretly radios its partners: avg score 24.67-)
+  (secretly radios its partners: avg score 24.93+)
 
 The interesting thing about CheatBot is that the perfect strategy is
-difficult to compute, even when hints are redundant. Also note that
-24.89 is a hard upper bound on the average score in a three-player game,
-because the last one or two cards in the deck might be 5s.
+difficult to compute, even when hints are redundant.
 
 Notice that CheatBot must be built with OPENMP=0, since it uses
 global variables to communicate with its partners. However, it is
