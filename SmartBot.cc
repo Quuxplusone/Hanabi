@@ -433,6 +433,14 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
         (to == (from + 1) % handKnowledge_.size()) &&
         vector_contains(card_indices, discardIndex) &&
         couldBeValuable(server, handKnowledge_[to][discardIndex], value);
+    const bool isHintStoneReclaim =
+        (server.hintStonesRemaining() == Hanabi::NUMHINTS) &&
+        (from == (to+1) % server.numPlayers()) &&
+        vector_contains(card_indices, 0);
+
+    if (isHintStoneReclaim) {
+        return;
+    }
 
     assert(!isPointless);
 
@@ -726,23 +734,31 @@ void SmartBot::pleaseMakeMove(Server &server)
     if (maybeGiveValuableWarning(server)) return;
     if (maybePlayLowestPlayableCard(server)) return;
     if (maybeGiveHelpfulHint(server)) return;
+    if (maybePlayMysteryCard(server)) return;
 
     /* We couldn't find a good hint to give, or else we're out of hint-stones.
-     * Discard a card. */
+     * Discard a card. However, discarding is not allowed when we have all
+     * the hint stones, so in that case, just hint to the player on our right
+     * about his oldest card. */
 
-    if (maybePlayMysteryCard(server)) return;
-    if (maybeDiscardWorthlessCard(server)) return;
-    if (maybeDiscardOldCard(server)) return;
+    if (server.hintStonesRemaining() == Hanabi::NUMHINTS) {
+        const int numPlayers = server.numPlayers();
+        const int right_partner = (me_ + numPlayers - 1) % numPlayers;
+        server.pleaseGiveValueHint(right_partner, server.handOfPlayer(right_partner)[0].value);
+    } else {
+        if (maybeDiscardWorthlessCard(server)) return;
+        if (maybeDiscardOldCard(server)) return;
 
-    /* In this unfortunate case, which still happens fairly often, I find
-     * that my whole hand is composed of valuable cards, and I just have
-     * to discard the one of them that will block our progress the least. */
-    int best_index = 0;
-    for (int i=0; i < 4; ++i) {
-        assert(handKnowledge_[me_][i].isValuable);
-        if (handKnowledge_[me_][i].value() > handKnowledge_[me_][best_index].value()) {
-            best_index = i;
+        /* In this unfortunate case, which still happens fairly often, I find
+         * that my whole hand is composed of valuable cards, and I just have
+         * to discard the one of them that will block our progress the least. */
+        int best_index = 0;
+        for (int i=0; i < 4; ++i) {
+            assert(handKnowledge_[me_][i].isValuable);
+            if (handKnowledge_[me_][i].value() > handKnowledge_[me_][best_index].value()) {
+                best_index = i;
+            }
         }
+        server.pleaseDiscard(best_index);
     }
-    server.pleaseDiscard(best_index);
 }

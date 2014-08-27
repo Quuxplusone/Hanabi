@@ -2,10 +2,7 @@ This is a framework for writing bots that play Hanabi.
 http://boardgamegeek.com/boardgame/98778/hanabi
 http://www.rnrgames.com/images/ProductRules/hanabiRules.PDF
 
-The framework does not (yet!) respect the following rule of Hanabi:
-- Discarding is not allowed when all hint stones are available.
-All the other rules should now be supported.
-
+The framework now respects all the official rules of Hanabi!
 
 Typing "make" will build all of the bots that the Makefile knows about.
 
@@ -15,13 +12,13 @@ enabling parallel processing with OpenMP, unless you also pass OPENMP=0.
 ./run_BlindBot
   (blindly plays a random card each time: avg score 1.26-)
 ./run_SimpleBot
-  (hints about playable cards: avg score 18.74-)
+  (hints about playable cards: avg score 18.80+)
 ./run_ValueBot
-  (also warns about valuable cards: avg score 20.43+)
+  (also warns about valuable cards: avg score 20.43-)
 ./run_HolmesBot
-  (also performs inferences: avg score 21.53+, or 21.69- using mulligans)
+  (also performs inferences: avg score 21.52+, or 21.69+ using mulligans)
 ./run_SmartBot
-  (prefers to play cards its partners don't know it knows: avg score 21.78+, or 21.98+ using mulligans)
+  (prefers to play cards its partners don't know it knows: avg score 21.78-, or 21.96+ using mulligans)
 ./run_CheatBot
   (secretly radios its partners: avg score 24.93+)
 

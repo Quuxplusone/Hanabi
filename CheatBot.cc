@@ -249,6 +249,13 @@ void CheatBot::pleaseMakeMove(Server &server)
 
     if (maybePlayLowestPlayableCard(server)) return;
 
+    /* If there are no hint stones missing, then it's impossible to discard.
+     * Give a hint just to free up a discard for the next guy. */
+    if (server.hintStonesRemaining() == Hanabi::NUMHINTS) {
+        if (maybeTemporize(server)) return;
+        assert(false);  /* temporizing is definitely possible */
+    }
+
     if (noPlayableCardsVisible(server)) {
         if (maybeDiscardWorthlessCard(server)) return;
         if (maybeDiscardDuplicateCard(server)) return;

@@ -101,6 +101,8 @@ struct Server {
      * of those functions. */
     Card activeCard() const;
 
+    bool discardingIsAllowed() const;
+
     /* Observe the pile of the given color. */
     Pile pileOf(Color color) const;
 
@@ -180,7 +182,7 @@ private:
     std::vector<Bot *> players_;
     int observingPlayer_;
     int activePlayer_;
-    bool activePlayerHasMoved_;
+    int movesFromActivePlayer_;
     Card activeCard_;
     bool activeCardIsObservable_;
     int finalCountdown_;

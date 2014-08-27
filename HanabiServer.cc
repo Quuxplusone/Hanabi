@@ -155,19 +155,21 @@ int Server::runGame(const BotFactory &botFactory, int numPlayers)
     /* Run the game. */
     activeCardIsObservable_ = false;
     activePlayer_ = 0;
+    movesFromActivePlayer_ = -1;
     while (!this->gameOver()) {
         if (activePlayer_ == 0) this->logHands_();
-        activePlayerHasMoved_ = false;
         for (int i=0; i < numPlayers; ++i) {
             observingPlayer_ = i;
             players_[i]->pleaseObserveBeforeMove(*this);
         }
         observingPlayer_ = activePlayer_;
-        assert(!activePlayerHasMoved_);
+        movesFromActivePlayer_ = 0;
         players_[activePlayer_]->pleaseMakeMove(*this);  /* make a move */
-        if (!activePlayerHasMoved_) {
+        if (movesFromActivePlayer_ == 0) {
             throw std::runtime_error("bot failed to respond to pleaseMove()");
         }
+        assert(movesFromActivePlayer_ == 1);
+        movesFromActivePlayer_ = -1;
         for (int i=0; i < numPlayers; ++i) {
             observingPlayer_ = i;
             players_[i]->pleaseObserveAfterMove(*this);
@@ -263,15 +265,17 @@ int Server::cardsRemainingInDeck() const
 Card Server::pleaseDiscard(int index)
 {
     assert(0 <= activePlayer_ && activePlayer_ < numPlayers_);
-    if (activePlayerHasMoved_) throw std::runtime_error("bot attempted to move twice");
+    if (movesFromActivePlayer_ > 0) throw std::runtime_error("bot attempted to move twice");
+    if (movesFromActivePlayer_ < 0) throw std::runtime_error("called pleaseDiscard() from the wrong observer");
     if (index < 0 || hands_[activePlayer_].size() <= index) throw std::runtime_error("invalid card index");
-    // if (hintStonesRemaining_ == NUMHINTS) throw std::runtime_error("all hint stones are already available");
+    if (hintStonesRemaining_ == NUMHINTS) throw std::runtime_error("all hint stones are already available");
 
     Card discardedCard = hands_[activePlayer_][index];
     activeCard_ = discardedCard;
     activeCardIsObservable_ = true;
 
     /* Notify all the players of the discard (before it happens). */
+    movesFromActivePlayer_ = -1;
     int oldObservingPlayer = observingPlayer_;
     for (int i=0; i < numPlayers_; ++i) {
         observingPlayer_ = i;
@@ -302,7 +306,7 @@ Card Server::pleaseDiscard(int index)
     }
 
     regainHintStoneIfPossible_();
-    activePlayerHasMoved_ = true;
+    movesFromActivePlayer_ = 1;
 
     return discardedCard;
 }
@@ -311,7 +315,8 @@ Card Server::pleasePlay(int index)
 {
     assert(0 <= activePlayer_ && activePlayer_ < hands_.size());
     assert(players_.size() == hands_.size());
-    if (activePlayerHasMoved_) throw std::runtime_error("bot attempted to move twice");
+    if (movesFromActivePlayer_ > 0) throw std::runtime_error("bot attempted to move twice");
+    if (movesFromActivePlayer_ < 0) throw std::runtime_error("called pleasePlay() from the wrong observer");
     if (index < 0 || hands_[activePlayer_].size() <= index) throw std::runtime_error("invalid card index");
 
     Card selectedCard = hands_[activePlayer_][index];
@@ -319,6 +324,7 @@ Card Server::pleasePlay(int index)
     activeCardIsObservable_ = true;
 
     /* Notify all the players of the attempted play (before it happens). */
+    movesFromActivePlayer_ = -1;
     int oldObservingPlayer = observingPlayer_;
     for (int i=0; i < players_.size(); ++i) {
         observingPlayer_ = i;
@@ -367,7 +373,7 @@ Card Server::pleasePlay(int index)
         }
     }
 
-    activePlayerHasMoved_ = true;
+    movesFromActivePlayer_ = 1;
 
     return selectedCard;
 }
@@ -376,7 +382,8 @@ void Server::pleaseGiveColorHint(int to, Color color)
 {
     assert(0 <= activePlayer_ && activePlayer_ < hands_.size());
     assert(players_.size() == hands_.size());
-    if (activePlayerHasMoved_) throw std::runtime_error("bot attempted to move twice");
+    if (movesFromActivePlayer_ > 0) throw std::runtime_error("bot attempted to move twice");
+    if (movesFromActivePlayer_ < 0) throw std::runtime_error("called pleaseGiveColorHint() from the wrong observer");
     if (to < 0 || hands_.size() <= to) throw std::runtime_error("invalid player index");
     if (color < RED || BLUE < color) throw std::runtime_error("invalid color");
     if (hintStonesRemaining_ == 0) throw std::runtime_error("no hint stones remaining");
@@ -405,6 +412,7 @@ void Server::pleaseGiveColorHint(int to, Color color)
     }
 
     /* Notify all the players of the given hint. */
+    movesFromActivePlayer_ = -1;
     int oldObservingPlayer = observingPlayer_;
     for (int i=0; i < players_.size(); ++i) {
         observingPlayer_ = i;
@@ -413,14 +421,15 @@ void Server::pleaseGiveColorHint(int to, Color color)
     observingPlayer_ = oldObservingPlayer;
 
     hintStonesRemaining_ -= 1;
-    activePlayerHasMoved_ = true;
+    movesFromActivePlayer_ = 1;
 }
 
 void Server::pleaseGiveValueHint(int to, Value value)
 {
     assert(0 <= activePlayer_ && activePlayer_ < hands_.size());
     assert(players_.size() == hands_.size());
-    if (activePlayerHasMoved_) throw std::runtime_error("bot attempted to move twice");
+    if (movesFromActivePlayer_ > 0) throw std::runtime_error("bot attempted to move twice");
+    if (movesFromActivePlayer_ < 0) throw std::runtime_error("called pleaseGiveValueHint() from the wrong observer");
     if (to < 0 || players_.size() <= to) throw std::runtime_error("invalid player index");
     if (value <= 0 || 5 < value) throw std::runtime_error("invalid value");
     if (hintStonesRemaining_ == 0) throw std::runtime_error("no hint stones remaining");
@@ -450,6 +459,7 @@ void Server::pleaseGiveValueHint(int to, Value value)
     }
 
     /* Notify all the players of the given hint. */
+    movesFromActivePlayer_ = -1;
     int oldObservingPlayer = observingPlayer_;
     for (int i=0; i < players_.size(); ++i) {
         observingPlayer_ = i;
@@ -458,7 +468,7 @@ void Server::pleaseGiveValueHint(int to, Value value)
     observingPlayer_ = oldObservingPlayer;
 
     hintStonesRemaining_ -= 1;
-    activePlayerHasMoved_ = true;
+    movesFromActivePlayer_ = 1;
 }
 
 void Server::regainHintStoneIfPossible_()

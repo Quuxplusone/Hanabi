@@ -5,6 +5,15 @@
 
 using namespace Hanabi;
 
+template<typename T>
+static bool vector_contains(const std::vector<T> &vec, T value)
+{
+    for (int i=0; i < vec.size(); ++i) {
+        if (vec[i] == value) return true;
+    }
+    return false;
+}
+
 CardKnowledge::CardKnowledge()
 {
     for (Color color = RED; color <= BLUE; ++color) {
@@ -109,7 +118,18 @@ void SimpleBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, i
     assert(server.whoAmI() == me_);
 
     /* Someone has given P a value hint. Using SimpleBot's strategy,
-     * this means that all the named cards are playable. */
+     * this means that all the named cards are playable...
+     * unless the hint looks like it was just an attempt to free up
+     * a hint stone for discarding. */
+
+    const bool isHintStoneReclaim =
+        (server.hintStonesRemaining() == Hanabi::NUMHINTS) &&
+        (from == (to+1) % server.numPlayers()) &&
+        vector_contains(card_indices, 0);
+
+    if (isHintStoneReclaim) {
+        return;
+    }
 
     for (int i=0; i < card_indices.size(); ++i) {
         CardKnowledge &knol = handKnowledge_[to][card_indices[i]];
@@ -257,7 +277,14 @@ void SimpleBot::pleaseMakeMove(Server &server)
     if (maybeGiveHelpfulHint(server)) return;
 
     /* We couldn't find a good hint to give, or else we're out of hint-stones.
-     * Discard a card. */
-
-    server.pleaseDiscard(0);
+     * Discard a card. However, discarding is not allowed when we have all
+     * the hint stones, so in that case, just hint to the player on our right
+     * about his oldest card. */
+    if (server.hintStonesRemaining() == Hanabi::NUMHINTS) {
+        const int numPlayers = server.numPlayers();
+        const int right_partner = (me_ + numPlayers - 1) % numPlayers;
+        server.pleaseGiveValueHint(right_partner, server.handOfPlayer(right_partner)[0].value);
+    } else {
+        server.pleaseDiscard(0);
+    }
 }
