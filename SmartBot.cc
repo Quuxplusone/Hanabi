@@ -396,8 +396,8 @@ void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
         CardKnowledge &knol = handKnowledge_[to][i];
         if (vector_contains(card_indices, i)) {
             knol.setMustBe(color);
-            if (playableValue <= 5 && !knol.cannotBe(Card(color, playableValue))) {
-                knol.setMustBe(Value(playableValue));
+            if (knol.couldBePlayable(server)) {
+                knol.isPlayable = true;
             }
         } else {
             knol.setCannotBe(color);
@@ -462,7 +462,7 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
         CardKnowledge &knol = handKnowledge_[to][i];
         if (vector_contains(card_indices, i)) {
             knol.setMustBe(value);
-            if (knol.color() == -1 && !isWarning && !knol.isWorthless) {
+            if (!isWarning && knol.couldBePlayable(server)) {
                 knol.isPlayable = true;
             }
         } else {
@@ -564,16 +564,19 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
      * unplayable cards? */
     for (Color color = RED; color <= BLUE; ++color) {
         const int playableValue = server.pileOf(color).size() + 1;
+        if (playableValue > 5) continue;  /* this pile is complete */
         int information_content = 0;
         bool misinformative = false;
         for (int c=0; c < partners_hand.size(); ++c) {
             const CardKnowledge &knol = handKnowledge_[partner][c];
             if (partners_hand[c].color != color) continue;
-            if (is_really_playable[c] && !knol.isPlayable) {
-                information_content += 1;
-            } else if (!is_really_playable[c] && playableValue <= 5 && !knol.cannotBe(Card(color, playableValue))) {
-                misinformative = true;
-                break;
+            if (is_really_playable[c]) {
+                information_content += !knol.isPlayable;
+            } else if (!knol.isWorthless) {
+                if (!knol.cannotBe(Card(color, playableValue))) {
+                    misinformative = true;
+                    break;
+                }
             }
         }
         if (misinformative) continue;
@@ -602,11 +605,20 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
         for (int c=0; c < partners_hand.size(); ++c) {
             const CardKnowledge &knol = handKnowledge_[partner][c];
             if (partners_hand[c].value != value) continue;
-            if (is_really_playable[c] && !knol.isPlayable) {
-                information_content += 1;
-            } else if (!is_really_playable[c] && (knol.color() == -1 && !knol.isWorthless)) {
-                misinformative = true;
-                break;
+            if (is_really_playable[c]) {
+                information_content += !knol.isPlayable;
+            } else if (!knol.isWorthless) {
+                /* We're proposing to give a value hint that includes this unplayable card.
+                 * If this card could legitimately be of a playable color, then our proposed
+                 * hint is misinformative. */
+                for (Color playableColor = RED; playableColor <= BLUE; ++playableColor) {
+                    if (server.pileOf(playableColor).nextValueIs(value) &&
+                        !knol.cannotBe(Card(playableColor, value))) {
+                        misinformative = true;
+                        break;
+                    }
+                }
+                if (misinformative) break;
             }
         }
         if (misinformative) continue;

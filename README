@@ -18,7 +18,7 @@ enabling parallel processing with OpenMP, unless you also pass OPENMP=0.
 ./run_HolmesBot
   (also performs inferences: avg score 21.52+, or 21.69+ using mulligans)
 ./run_SmartBot
-  (prefers to play cards its partners don't know it knows: avg score 21.78-, or 21.96+ using mulligans)
+  (prefers to play cards its partners don't know it knows: avg score 21.78+, or 21.97+ using mulligans)
 ./run_CheatBot
   (secretly radios its partners: avg score 24.95+)
 
