@@ -142,6 +142,7 @@ int Server::runGame(const BotFactory &botFactory, int numPlayers)
         }
     }
     std::random_shuffle(deck_.begin(), deck_.end());
+    discards_.clear();
 
     /* Secretly draw the starting hands. */
     hands_.resize(numPlayers);
