@@ -48,6 +48,7 @@ CheatBot::CheatBot(int index, int n)
 void CheatBot::pleaseObserveBeforeMove(const Server &server)
 {
     if (me_ == 0) {
+        discards = server.discards();
         for (int p=1; p < hands.size(); ++p) {
             hands[p] = server.handOfPlayer(p);
         }
@@ -56,13 +57,7 @@ void CheatBot::pleaseObserveBeforeMove(const Server &server)
     }
 }
 
-void CheatBot::pleaseObserveBeforeDiscard(const Server &server, int from, int card_index)
-{
-    if (me_ == 0) {
-        discards.push_back(server.activeCard());
-    }
-}
-
+void CheatBot::pleaseObserveBeforeDiscard(const Server &server, int from, int card_index) { }
 void CheatBot::pleaseObserveBeforePlay(const Server &, int, int) { }
 void CheatBot::pleaseObserveColorHint(const Server &, int, int, Color, const std::vector<int> &) { }
 void CheatBot::pleaseObserveValueHint(const Server &, int, int, Value, const std::vector<int> &) { }
@@ -131,6 +126,28 @@ static bool noPlayableCardsVisible(const Server &server)
             if (server.pileOf(card.color).nextValueIs(card.value)) {
                 return false;
             }
+        }
+    }
+    return true;
+}
+
+static bool noWorthlessOrDuplicateCardsVisible(const Server& server)
+{
+    for (int p=0; p < hands.size(); ++p) {
+        for (int i=0; i < hands[p].size(); ++i) {
+            Card card = hands[p][i];
+            Pile pile = server.pileOf(card.color);
+            if (pile.contains(card.value)) return false;  /* it's worthless */
+            assert(card.value > pile.size());
+            for (int v = pile.size()+1; v < card.value; ++v) {
+                Card earlier_card(card.color, v);
+                if (vector_count(discards, earlier_card) == earlier_card.count()) {
+                    /* earlier_card is gone for good, so this later card
+                     * is also unplayable (worthless). */
+                    return false;
+                }
+            }
+            if (visibleCopiesOf(card) >= 2) return false;  /* it's a duplicate */
         }
     }
     return true;
@@ -256,9 +273,15 @@ void CheatBot::pleaseMakeMove(Server &server)
         assert(false);  /* temporizing is definitely possible */
     }
 
+    /* If there are no playable cards visible, then temporizing won't solve anything.
+     * Someone must discard a card to get things moving again --- the sooner the better.
+     */
     if (noPlayableCardsVisible(server)) {
         if (maybeDiscardWorthlessCard(server)) return;
         if (maybeDiscardDuplicateCard(server)) return;
+        if (noWorthlessOrDuplicateCardsVisible(server)) {
+            if (maybePlayProbabilities(server)) return;
+        }
     }
 
     /* This heuristic isn't very scientifically motivated. */

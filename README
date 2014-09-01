@@ -20,7 +20,7 @@ enabling parallel processing with OpenMP, unless you also pass OPENMP=0.
 ./run_SmartBot
   (prefers to play cards its partners don't know it knows: avg score 21.78-, or 21.96+ using mulligans)
 ./run_CheatBot
-  (secretly radios its partners: avg score 24.93+)
+  (secretly radios its partners: avg score 24.95+)
 
 The interesting thing about CheatBot is that the perfect strategy is
 difficult to compute, even when hints are redundant.
