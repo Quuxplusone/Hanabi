@@ -94,17 +94,52 @@ static void usage(const char *why)
     std::exit(EXIT_FAILURE);
 }
 
+static void run_one_stacked_deck_game(int numberOfPlayers)
+{
+    /* Get the deck to use, from stdin. */
+    static const char colornames[] = "roygb";
+    int counts[Hanabi::NUMCOLORS][6] = {};
+    std::vector<Hanabi::Card> stackedDeck;
+    std::string cardRepresentation;
+    for (size_t i=0; i < (Hanabi::NUMCOLORS * 10); ++i) {
+        if (std::cin >> cardRepresentation) {
+            if (cardRepresentation.length() != 2) usage("Bad card in stacked deck.");
+            if (cardRepresentation[0] < '1' || '5' < cardRepresentation[0]) usage("Bad card in stacked deck.");
+            const char* colorname = strchr(colornames, cardRepresentation[1]);
+            if (colorname == NULL) usage("Bad card in stacked deck.");
+            Hanabi::Color color = (Hanabi::Color)(colorname - colornames);
+            int value = (cardRepresentation[0] - '0');
+            counts[color][value] += 1;
+            if (counts[color][value] > Hanabi::Card(color,value).count()) usage("Too many instances of some particular card in stacked deck.");
+            stackedDeck.push_back(Hanabi::Card(color,value));
+        } else {
+            usage("Not enough cards in stacked deck. (Should be 50.)");
+        }
+    }
+    /* If we get here, then by the pigeonhole principle every count must be correct. */
+    /* Run one game with logging to stderr. */
+    Hanabi::Server server;
+    BotFactory<BOTNAME> botFactory;
+    server.setLog(&std::cerr);
+    int score = server.runGame(botFactory, numberOfPlayers, stackedDeck);
+    std::cout << stringify(BOTNAME) " scored " << score << " points in that game.\n";
+    std::cout << "Mulligans used: " << server.mulligansUsed() << std::endl;
+}
+
 int main(int argc, char **argv)
 {
     int numberOfPlayers = 3;
     int numberOfGames = 1000*1000;
     int every = 20000;
     int seed = -1;
-    bool logOneGame = true;
+    bool quiet = false;
+    bool stackTheDeck = false;
 
     for (int i=1; i < argc; ++i) {
         if (argv[i] == std::string("--quiet")) {
-            logOneGame = false;
+            quiet = true;
+        } else if (argv[i] == std::string("--deck")) {
+            stackTheDeck = true;
         } else if (argv[i] == std::string("--players")) {
             if (i+1 >= argc) usage("Option --players requires an argument.");
             numberOfPlayers = atoi(argv[i+1]);
@@ -140,7 +175,12 @@ int main(int argc, char **argv)
     printf("--seed %d\n", seed);
     std::srand(seed);
 
-    if (logOneGame) {
+    if (stackTheDeck) {
+        run_one_stacked_deck_game(numberOfPlayers);
+        return 0;
+    }
+
+    if (!quiet) {
         /* Run one game with logging to stderr. */
         Hanabi::Server server;
         BotFactory<BOTNAME> botFactory;

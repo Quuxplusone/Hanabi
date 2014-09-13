@@ -74,6 +74,13 @@ struct Server {
      * run the game to its conclusion, and return the final score. */
     int runGame(const BotFactory &botFactory, int numPlayers);
 
+    /* If a pre-shuffled deck is provided, we'll use a copy of
+     * that deck instead of randomly shuffling our own. The "top card"
+     * of the input deck should be at vector index 0; i.e., the cards
+     * should be listed in the order that they will be drawn during
+     * the game. */
+    int runGame(const BotFactory &botFactory, int numPlayers, const std::vector<Card>& stackedDeck);
+
     /* Returns the number of players in the game. */
     int numPlayers() const;
 

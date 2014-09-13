@@ -116,6 +116,11 @@ void Server::setLog(std::ostream *logStream)
 
 int Server::runGame(const BotFactory &botFactory, int numPlayers)
 {
+    return this->runGame(botFactory, numPlayers, std::vector<Card>());
+}
+
+int Server::runGame(const BotFactory &botFactory, int numPlayers, const std::vector<Card>& stackedDeck)
+{
     /* Create and initialize the bots. */
     numPlayers_ = numPlayers;
     players_.resize(numPlayers);
@@ -133,15 +138,20 @@ int Server::runGame(const BotFactory &botFactory, int numPlayers)
     finalCountdown_ = 0;
 
     /* Shuffle the deck. */
-    deck_.clear();
-    for (Color color = RED; color <= BLUE; ++color) {
-        for (int value = 1; value <= 5; ++value) {
-            const Card card(color, value);
-            const int n = card.count();
-            for (int k=0; k < n; ++k) deck_.push_back(card);
+    if (!stackedDeck.empty()) {
+        deck_ = stackedDeck;
+        std::reverse(deck_.begin(), deck_.end());  /* because we pull cards from the "top" (back) of the vector */
+    } else {
+        deck_.clear();
+        for (Color color = RED; color <= BLUE; ++color) {
+            for (int value = 1; value <= 5; ++value) {
+                const Card card(color, value);
+                const int n = card.count();
+                for (int k=0; k < n; ++k) deck_.push_back(card);
+            }
         }
+        std::random_shuffle(deck_.begin(), deck_.end());
     }
-    std::random_shuffle(deck_.begin(), deck_.end());
     discards_.clear();
 
     /* Secretly draw the starting hands. */
