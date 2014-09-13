@@ -110,7 +110,6 @@ bool CheatBot::maybePlayLowestPlayableCard(Server &server)
     }
 
     if (best_index != -1) {
-        Card card = hands[me_][best_index];
         server.pleasePlay(best_index);
         return true;
     }
@@ -153,6 +152,21 @@ static bool noWorthlessOrDuplicateCardsVisible(const Server& server)
     return true;
 }
 
+bool CheatBot::tryHardToDisposeOf(Server& server, int card_index)
+{
+    if (server.hintStonesRemaining() < Hanabi::NUMHINTS) {
+        server.pleaseDiscard(card_index);
+        return true;
+    } else if (server.mulligansRemaining() >= 2) {
+        /* We REALLY want to get this card out of our hand! */
+        server.pleasePlay(card_index);
+        return true;
+    } else {
+        /* There's no way to dispose of this card. */
+        return false;
+    }
+}
+
 bool CheatBot::maybeDiscardWorthlessCard(Server &server)
 {
     for (int i=0; i < 4; ++i) {
@@ -160,8 +174,11 @@ bool CheatBot::maybeDiscardWorthlessCard(Server &server)
         Pile pile = server.pileOf(card.color);
         if (pile.contains(card.value)) {
             /* This card won't ever be needed again. */
-            server.pleaseDiscard(i);
-            return true;
+            return tryHardToDisposeOf(server, i);
+        } else if (vector_count(hands[me_], card) >= 2) {
+            /* I've got two copies of this card already; it's definitely safe
+             * to discard one of them. */
+            return tryHardToDisposeOf(server, i);
         } else {
             assert(card.value > pile.size());
             for (int v = pile.size()+1; v < card.value; ++v) {
@@ -169,8 +186,7 @@ bool CheatBot::maybeDiscardWorthlessCard(Server &server)
                 if (vector_count(discards, earlier_card) == earlier_card.count()) {
                     /* earlier_card is gone for good, so this later card
                      * is also unplayable. */
-                    server.pleaseDiscard(i);
-                    return true;
+                    return tryHardToDisposeOf(server, i);
                 }
             }
         }
@@ -180,6 +196,8 @@ bool CheatBot::maybeDiscardWorthlessCard(Server &server)
 
 bool CheatBot::maybeDiscardDuplicateCard(Server &server)
 {
+    if (server.hintStonesRemaining() == Hanabi::NUMHINTS) return false;
+
     for (int i=0; i < 4; ++i) {
         Card card = hands[me_][i];
         if (visibleCopiesOf(card) > 1) {
@@ -193,6 +211,8 @@ bool CheatBot::maybeDiscardDuplicateCard(Server &server)
 
 bool CheatBot::maybePlayProbabilities(Server &server)
 {
+    if (server.hintStonesRemaining() == Hanabi::NUMHINTS) return false;
+
     int bestGap = 0;
     int bestIndex = -1;
 
@@ -266,13 +286,6 @@ void CheatBot::pleaseMakeMove(Server &server)
 
     if (maybePlayLowestPlayableCard(server)) return;
 
-    /* If there are no hint stones missing, then it's impossible to discard.
-     * Give a hint just to free up a discard for the next guy. */
-    if (server.hintStonesRemaining() == Hanabi::NUMHINTS) {
-        if (maybeTemporize(server)) return;
-        assert(false);  /* temporizing is definitely possible */
-    }
-
     /* If there are no playable cards visible, then temporizing won't solve anything.
      * Someone must discard a card to get things moving again --- the sooner the better.
      */
@@ -305,5 +318,6 @@ void CheatBot::pleaseMakeMove(Server &server)
     }
 
     /* Well, phooey. */
+    assert(server.hintStonesRemaining() == 0);  /* because maybeTemporize() failed */
     discardHighestCard(server);
 }

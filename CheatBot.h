@@ -12,6 +12,7 @@ class CheatBot : public Hanabi::Bot {
     bool maybePlayProbabilities(Hanabi::Server &);
     bool maybeTemporize(Hanabi::Server &);
     void discardHighestCard(Hanabi::Server &);
+    bool tryHardToDisposeOf(Hanabi::Server &, int card_index);
 
   public:
     CheatBot(int index, int numPlayers);
