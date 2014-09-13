@@ -99,6 +99,7 @@ int main(int argc, char **argv)
     int numberOfPlayers = 3;
     int numberOfGames = 1000*1000;
     int every = 20000;
+    int seed = -1;
     bool logOneGame = true;
 
     for (int i=1; i < argc; ++i) {
@@ -122,12 +123,22 @@ int main(int argc, char **argv)
             if (every <= 0) usage("Invalid number for option --every.");
             if ((every % 1000) != 0) usage("Number for option --every must be divisible by 1000.");
             ++i;
+        } else if (argv[i] == std::string("--seed")) {
+            if (i+1 >= argc) usage("Option --seed requires an argument.");
+            seed = atoi(argv[i+1]);
+            if (seed < 0) usage("Invalid number for option --seed.");
+            ++i;
         } else {
             usage("Invalid option.");
         }
     }
 
-    std::srand(std::time(NULL));
+    if (seed <= 0) {
+        std::srand(std::time(NULL));
+        seed = rand();
+    }
+    printf("--seed %d\n", seed);
+    std::srand(seed);
 
     if (logOneGame) {
         /* Run one game with logging to stderr. */
