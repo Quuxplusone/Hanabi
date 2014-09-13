@@ -374,8 +374,9 @@ Card Server::pleasePlay(int index)
         }
     }
 
-    movesFromActivePlayer_ = 1;
+    this->logPiles_();
 
+    movesFromActivePlayer_ = 1;
     return selectedCard;
 }
 
@@ -508,7 +509,7 @@ Card Server::draw_()
     return result;
 }
 
-void Server::logHands_()
+void Server::logHands_() const
 {
     if (log_) {
         (*log_) << "Current hands:";
@@ -516,6 +517,17 @@ void Server::logHands_()
             for (int j=0; j < (int)hands_[i].size(); ++j) {
                 (*log_) << (j ? "," : " ") << hands_[i][j].toString();
             }
+        }
+        (*log_) << "\n";
+    }
+}
+
+void Server::logPiles_() const
+{
+    if (log_) {
+        (*log_) << "Current piles:";
+        for (Color k = RED; k <= BLUE; ++k) {
+            (*log_) << " " << piles_[k].size() << Card(k, 1).toString()[1];
         }
         (*log_) << "\n";
     }

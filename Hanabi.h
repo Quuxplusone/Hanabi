@@ -200,7 +200,8 @@ private:
     Card draw_(void);
     void regainHintStoneIfPossible_(void);
     void loseMulligan_(void);
-    void logHands_(void);
+    void logHands_(void) const;
+    void logPiles_(void) const;
 };
 
 }  /* namespace Hanabi */
