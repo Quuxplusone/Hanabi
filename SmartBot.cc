@@ -428,7 +428,6 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
      * Otherwise, all the named cards are playable. */
 
     const int discardIndex = this->nextDiscardIndex(server, to);
-    const bool isPointless = (value < lowestPlayableValue_);
     const bool isWarning =
         (to == (from + 1) % handKnowledge_.size()) &&
         vector_contains(card_indices, discardIndex) &&
@@ -438,23 +437,9 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
         (from == (to+1) % server.numPlayers()) &&
         vector_contains(card_indices, 0);
 
-    if (isHintStoneReclaim) {
-        return;
-    }
-
-    assert(!isPointless);
-
     if (isWarning) {
         assert(discardIndex != -1);
         handKnowledge_[to][discardIndex].isValuable = true;
-        if (value == lowestPlayableValue_) {
-            /* This card is valuable, i.e., not worthless; therefore it
-             * must be playable sometime in the future. And since it's
-             * the lowest playable value already, it must in fact be
-             * playable right now! But we can't say the same thing for
-             * any of the other named cards. */
-            handKnowledge_[to][discardIndex].isPlayable = true;
-        }
     }
 
     const int numCards = server.sizeOfHandOfPlayer(to);
@@ -462,7 +447,7 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
         CardKnowledge &knol = handKnowledge_[to][i];
         if (vector_contains(card_indices, i)) {
             knol.setMustBe(value);
-            if (!isWarning && knol.couldBePlayable(server)) {
+            if (!isWarning && !isHintStoneReclaim && knol.couldBePlayable(server)) {
                 knol.isPlayable = true;
             }
         } else {
