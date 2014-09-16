@@ -634,6 +634,9 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
 
 bool SmartBot::maybeGiveValuableWarning(Server &server)
 {
+    /* Sometimes we just can't give a hint. */
+    if (server.hintStonesRemaining() == 0) return false;
+
     const int numPlayers = handKnowledge_.size();
     const int player_to_warn = (me_ + 1) % numPlayers;
 
@@ -651,9 +654,6 @@ bool SmartBot::maybeGiveValuableWarning(Server &server)
     assert(!handKnowledge_[player_to_warn][discardIndex].isValuable);
     assert(!handKnowledge_[player_to_warn][discardIndex].isPlayable);
     assert(!handKnowledge_[player_to_warn][discardIndex].isWorthless);
-
-    /* Sometimes we just can't give a hint. */
-    if (server.hintStonesRemaining() == 0) return false;
 
     Hint bestHint = bestHintForPlayer(server, player_to_warn);
     if (bestHint.information_content > 0) {
@@ -739,10 +739,10 @@ void SmartBot::pleaseMakeMove(Server &server)
     assert(server.activePlayer() == me_);
     assert(UseMulligans || !server.mulligansUsed());
 
-    /* If I have a playable card, play it.
-     * Otherwise, if someone else has an unknown-playable card, hint it.
-     * Otherwise, just discard my oldest (index-0) card. */
-
+    if (server.cardsRemainingInDeck() == 0) {
+        if (maybePlayLowestPlayableCard(server)) return;
+        if (maybePlayMysteryCard(server)) return;
+    }
     if (maybeGiveValuableWarning(server)) return;
     if (maybePlayLowestPlayableCard(server)) return;
     if (maybeGiveHelpfulHint(server)) return;
