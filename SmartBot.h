@@ -33,7 +33,7 @@ private:
 };
 
 struct Hint {
-    int information_content;
+    int fitness;
     int to;
     int color;
     int value;

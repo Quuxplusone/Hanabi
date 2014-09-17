@@ -196,7 +196,7 @@ void CardKnowledge::update(const Server &server, const SmartBot &bot, bool useMy
 
 Hint::Hint()
 {
-    information_content = -1;
+    fitness = -1;
     color = -1;
     value = -1;
     to = -1;
@@ -550,13 +550,15 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
     for (Color color = RED; color <= BLUE; ++color) {
         const int playableValue = server.pileOf(color).size() + 1;
         if (playableValue > 5) continue;  /* this pile is complete */
-        int information_content = 0;
+        int playability_content = 0;
+        int color_content = 0;
         bool misinformative = false;
         for (int c=0; c < partners_hand.size(); ++c) {
             const CardKnowledge &knol = handKnowledge_[partner][c];
             if (partners_hand[c].color != color) continue;
             if (is_really_playable[c]) {
-                information_content += !knol.isPlayable;
+                playability_content += !knol.isPlayable;
+                color_content += (knol.color() == -1);
             } else if (!knol.isWorthless) {
                 if (!knol.cannotBe(Card(color, playableValue))) {
                     misinformative = true;
@@ -565,8 +567,9 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
             }
         }
         if (misinformative) continue;
-        if (information_content > best_so_far.information_content) {
-            best_so_far.information_content = information_content;
+        const int fitness = (playability_content == 0) ? 0 : (playability_content + color_content);
+        if (fitness > best_so_far.fitness) {
+            best_so_far.fitness = fitness;
             best_so_far.color = color;
             best_so_far.value = -1;
         }
@@ -585,13 +588,15 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
 
     for (int value = 1; value <= 5; ++value) {
         if (value == valueToAvoid) continue;
-        int information_content = 0;
+        int playability_content = 0;
+        int value_content = 0;
         bool misinformative = false;
         for (int c=0; c < partners_hand.size(); ++c) {
             const CardKnowledge &knol = handKnowledge_[partner][c];
             if (partners_hand[c].value != value) continue;
             if (is_really_playable[c]) {
-                information_content += !knol.isPlayable;
+                playability_content += !knol.isPlayable;
+                value_content += (knol.value() == -1);
             } else if (!knol.isWorthless) {
                 /* We're proposing to give a value hint that includes this unplayable card.
                  * If this card could legitimately be of a playable color, then our proposed
@@ -607,8 +612,9 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
             }
         }
         if (misinformative) continue;
-        if (information_content > best_so_far.information_content) {
-            best_so_far.information_content = information_content;
+        const int fitness = (playability_content == 0) ? 0 : (playability_content + value_content);
+        if (fitness > best_so_far.fitness) {
+            best_so_far.fitness = fitness;
             best_so_far.color = -1;
             best_so_far.value = value;
         }
@@ -641,7 +647,7 @@ bool SmartBot::maybeGiveValuableWarning(Server &server)
     assert(!handKnowledge_[player_to_warn][discardIndex].isWorthless);
 
     Hint bestHint = bestHintForPlayer(server, player_to_warn);
-    if (bestHint.information_content > 0) {
+    if (bestHint.fitness > 0) {
         /* Excellent; we found a hint that will cause him to play a card
          * instead of discarding. */
         bestHint.give(server);
@@ -668,12 +674,12 @@ bool SmartBot::maybeGiveHelpfulHint(Server &server)
     for (int i = 1; i < numPlayers; ++i) {
         const int partner = (me_ + i) % numPlayers;
         Hint candidate = bestHintForPlayer(server, partner);
-        if (candidate.information_content > bestHint.information_content) {
+        if (candidate.fitness > bestHint.fitness) {
             bestHint = candidate;
         }
     }
 
-    if (bestHint.information_content <= 0) return false;
+    if (bestHint.fitness <= 0) return false;
 
     /* Give the hint. */
     bestHint.give(server);
