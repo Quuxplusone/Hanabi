@@ -92,6 +92,46 @@ bool CardKnowledge::couldBePlayable(const Hanabi::Server &server) const
     return false;
 }
 
+void CardKnowledge::setIsValuable(const SmartBot &bot, const Server& server, bool knownValuable)
+{
+    for (Color k = RED; k <= BLUE; ++k) {
+        for (int v = 1; v <= 5; ++v) {
+            if (this->cantBe_[k][v]) continue;
+            if (bot.isValuable(server, Card(k,v)) != knownValuable) {
+                this->cantBe_[k][v] = true;
+            }
+        }
+    }
+    this->isValuable = knownValuable;
+}
+
+void CardKnowledge::setIsWorthless(const SmartBot &bot, const Server& server, bool knownWorthless)
+{
+    for (Color k = RED; k <= BLUE; ++k) {
+        for (int v = 1; v <= 5; ++v) {
+            if (this->cantBe_[k][v]) continue;
+            if (bot.isWorthless(server, Card(k,v)) != knownWorthless) {
+                this->cantBe_[k][v] = true;
+            }
+        }
+    }
+    this->isWorthless = knownWorthless;
+}
+
+void CardKnowledge::setIsPlayable(const Server& server, bool knownPlayable)
+{
+    for (Color k = RED; k <= BLUE; ++k) {
+        int playableValue = server.pileOf(k).size() + 1;
+        for (int v = 1; v <= 5; ++v) {
+            if (this->cantBe_[k][v]) continue;
+            if ((v == playableValue) != knownPlayable) {
+                this->cantBe_[k][v] = true;
+            }
+        }
+    }
+    this->isPlayable = knownPlayable;
+}
+
 void CardKnowledge::update(const Server &server, const SmartBot &bot, bool useMyEyesight)
 {
     int color = this->color_;
@@ -124,8 +164,7 @@ void CardKnowledge::update(const Server &server, const SmartBot &bot, bool useMy
     assert(color == this->color_);
     assert(value == this->value_);
 
-    /* See if we can identify the card based on what we know
-     * about its properties. */
+    /* Rule out any cards that have been completely played and/or discarded. */
     if (value == -1 || color == -1) {
         bool restart = false;
         for (Color k = RED; k <= BLUE; ++k) {
@@ -135,11 +174,7 @@ void CardKnowledge::update(const Server &server, const SmartBot &bot, bool useMy
                 const int played = bot.playedCount_[k][v];
                 const int held = (useMyEyesight ? bot.eyesightCount_[k][v] : bot.locatedCount_[k][v]);
                 assert(played+held <= total);
-                if ((played+held == total) ||
-                    (isValuable && !bot.isValuable(server, Card(k,v))) ||
-                    (isPlayable && !server.pileOf(k).nextValueIs(v)) ||
-                    (isWorthless && !bot.isWorthless(server, Card(k,v))))
-                {
+                if (played+held == total) {
                     this->cantBe_[k][v] = true;
                     restart = true;
                 }
@@ -228,13 +263,14 @@ bool SmartBot::isWorthless(const Server &server, Card card) const
 {
     int playableValue = server.pileOf(card.color).size() + 1;
     if (card.value < playableValue) return true;
-#if 0
-    /* If all the red 4s are in the discard pile, then the red 5 is worthless. */
-    while (card.value > playableValue) {
-        --card.value;
-        if (playedCount_[card.color][card.value] == card.count()) return true;
+    if (false) {
+        /* If all the red 4s are in the discard pile, then the red 5 is worthless.
+         * But doing this check all the time apparently lowers SmartBot's average score! */
+        while (card.value > playableValue) {
+            --card.value;
+            if (playedCount_[card.color][card.value] == card.count()) return true;
+        }
     }
-#endif
     return false;
 }
 
@@ -356,7 +392,8 @@ void SmartBot::pleaseObserveBeforeMove(const Server &server)
 void SmartBot::pleaseObserveBeforeDiscard(const Hanabi::Server &server, int from, int card_index)
 {
     assert(server.whoAmI() == me_);
-    this->seePublicCard(server.activeCard());
+    Card card = server.activeCard();
+    this->seePublicCard(card);
     this->invalidateKnol(from, card_index);
 }
 
@@ -372,12 +409,6 @@ void SmartBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, i
         assert(this->isValuable(server, card));
     }
 
-    if (server.pileOf(card.color).nextValueIs(card.value)) {
-        /* This card is getting played, not discarded. */
-        if (!this->isValuable(server, card)) {
-            this->wipeOutPlayables(card);
-        }
-    }
     this->seePublicCard(card);
     this->invalidateKnol(from, card_index);
 }
@@ -397,7 +428,7 @@ void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
         if (vector_contains(card_indices, i)) {
             knol.setMustBe(color);
             if (knol.couldBePlayable(server)) {
-                knol.isPlayable = true;
+                knol.setIsPlayable(server, true);
             }
         } else {
             knol.setCannotBe(color);
@@ -439,7 +470,7 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
 
     if (isWarning) {
         assert(discardIndex != -1);
-        handKnowledge_[to][discardIndex].isValuable = true;
+        handKnowledge_[to][discardIndex].setIsValuable(*this, server, true);
     }
 
     const int numCards = server.sizeOfHandOfPlayer(to);
@@ -448,7 +479,7 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
         if (vector_contains(card_indices, i)) {
             knol.setMustBe(value);
             if (!isWarning && !isHintStoneReclaim && knol.couldBePlayable(server)) {
-                knol.isPlayable = true;
+                knol.setIsPlayable(server, true);
             }
         } else {
             knol.setCannotBe(value);
@@ -459,20 +490,6 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
 void SmartBot::pleaseObserveAfterMove(const Hanabi::Server &server)
 {
     assert(server.whoAmI() == me_);
-}
-
-void SmartBot::wipeOutPlayables(const Card &card)
-{
-    const int numPlayers = handKnowledge_.size();
-    for (int player = 0; player < numPlayers; ++player) {
-        for (int c = 0; c < 4; ++c) {
-            CardKnowledge &knol = handKnowledge_[player][c];
-            if (knol.cannotBe(card)) continue;
-            if (knol.isValuable) continue;
-            /* This card might or might not be playable, anymore. */
-            knol.isPlayable = false;
-        }
-    }
 }
 
 bool SmartBot::maybePlayLowestPlayableCard(Server &server)

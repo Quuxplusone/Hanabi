@@ -18,6 +18,9 @@ struct CardKnowledge {
     void setMustBe(Hanabi::Value value);
     void setCannotBe(Hanabi::Color color);
     void setCannotBe(Hanabi::Value value);
+    void setIsPlayable(const Hanabi::Server &server, bool knownPlayable);
+    void setIsValuable(const SmartBot &bot, const Hanabi::Server &server, bool knownValuable);
+    void setIsWorthless(const SmartBot &bot, const Hanabi::Server &server, bool knownWorthless);
     void update(const Hanabi::Server &server, const SmartBot &bot, bool useMyEyesight);
 
     bool couldBePlayable(const Hanabi::Server &server) const;
@@ -70,7 +73,6 @@ class SmartBot : public Hanabi::Bot {
     bool updateLocatedCount(const Hanabi::Server &server);
     void invalidateKnol(int player_index, int card_index);
     void seePublicCard(const Hanabi::Card &played_card);
-    void wipeOutPlayables(const Hanabi::Card &played_card);
 
     /* Returns -1 if the named player is planning to play a card on his
      * turn, or if all his cards are known to be valuable. Otherwise,
