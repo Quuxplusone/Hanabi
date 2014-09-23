@@ -80,11 +80,6 @@ void CardKnowledge::setCannotBe(Hanabi::Value value)
     }
 }
 
-bool CardKnowledge::couldBePlayable(const Hanabi::Server &server) const
-{
-    return (playable_ != NO);
-}
-
 void CardKnowledge::setIsPlayable(const Server& server, bool knownPlayable)
 {
     for (Color k = RED; k <= BLUE; ++k) {
@@ -283,6 +278,7 @@ bool SmartBot::isWorthless(const Server &server, Card card) const
 bool SmartBot::couldBeValuableWithValue(const Server &server, const CardKnowledge &knol, int value) const
 {
     if (value < 1 || 5 < value) return false;
+    if (knol.valuable() != MAYBE) return (knol.valuable() == YES);
     for (Color k = RED; k <= BLUE; ++k) {
         Card card(k, value);
         if (knol.cannotBe(card)) continue;
@@ -426,7 +422,7 @@ void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
         if (vector_contains(card_indices, i)) {
             knol.setMustBe(color);
             knol.update(server, *this, false);
-            if (knol.couldBePlayable(server)) {
+            if (knol.playable() == MAYBE) {
                 knol.setIsPlayable(server, true);
             }
         } else {
@@ -438,14 +434,33 @@ void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
 int SmartBot::nextDiscardIndex(const Hanabi::Server &server, int to) const
 {
     const int numCards = server.sizeOfHandOfPlayer(to);
+    int best_fitness = 0;
+    int best_index = -1;
     for (int i=0; i < numCards; ++i) {
-        if (handKnowledge_[to][i].playable() == YES) return -1;
-        if (handKnowledge_[to][i].worthless() == YES) return -1;
+        const CardKnowledge &knol = handKnowledge_[to][i];
+        int fitness = 0;
+        if (knol.playable() == YES) return -1;  /* we should just play this card */
+        if (knol.worthless() == YES) return -1;  /* we should already have discarded this card */
+        if (knol.valuable() == YES) continue;  /* we should never discard this card */
+
+        static const int PLAYABLE = 16, VALUABLE = 4, WORTHLESS = 1;
+        switch (PLAYABLE*knol.playable() + VALUABLE*knol.valuable() + WORTHLESS*knol.worthless())
+        {
+            case    NO*PLAYABLE +    NO*VALUABLE +    NO*WORTHLESS:    fitness = 200; break;
+            case    NO*PLAYABLE +    NO*VALUABLE + MAYBE*WORTHLESS:    fitness = 400; break;
+            case    NO*PLAYABLE + MAYBE*VALUABLE +    NO*WORTHLESS:    fitness = 100; break;
+            case    NO*PLAYABLE + MAYBE*VALUABLE + MAYBE*WORTHLESS:    fitness = 300; break;
+            case MAYBE*PLAYABLE +    NO*VALUABLE +    NO*WORTHLESS:    fitness = 200; break;
+            case MAYBE*PLAYABLE +    NO*VALUABLE + MAYBE*WORTHLESS:    fitness = 400; break;
+            case MAYBE*PLAYABLE + MAYBE*VALUABLE +    NO*WORTHLESS:    fitness = 100; break;
+            case MAYBE*PLAYABLE + MAYBE*VALUABLE + MAYBE*WORTHLESS:    fitness = 300; break;
+        }
+        if (fitness > best_fitness) {
+            best_fitness = fitness;
+            best_index = i;
+        }
     }
-    for (int i=0; i < numCards; ++i) {
-        if (handKnowledge_[to][i].valuable() != YES) return i;
-    }
-    return -1;
+    return best_index;
 }
 
 void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, int to, Value value, const std::vector<int> &card_indices)
@@ -478,7 +493,7 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
         if (vector_contains(card_indices, i)) {
             knol.setMustBe(value);
             knol.update(server, *this, false);
-            if (!isWarning && !isHintStoneReclaim && knol.couldBePlayable(server)) {
+            if (!isWarning && !isHintStoneReclaim && knol.playable() == MAYBE) {
                 knol.setIsPlayable(server, true);
             }
         } else {
@@ -707,7 +722,7 @@ bool SmartBot::maybePlayMysteryCard(Server &server)
 {
     if (!UseMulligans) return false;
 
-    const int table[4] = { -99, 1, 1, 2 };
+    const int table[4] = { -99, 1, 1, 3 };
     if (server.cardsRemainingInDeck() <= table[server.mulligansRemaining()]) {
         /* We could temporize, or we could do something that forces us to
          * draw a card. If we got here, temporizing has been rejected as
@@ -718,8 +733,7 @@ bool SmartBot::maybePlayMysteryCard(Server &server)
             CardKnowledge eyeKnol = handKnowledge_[me_][i];
             eyeKnol.update(server, *this, /*useMyEyesight=*/true);
             assert(eyeKnol.playable() != YES);  /* or we would have played it already */
-            if (eyeKnol.couldBePlayable(server)) {
-                assert(eyeKnol.worthless() != YES);
+            if (eyeKnol.playable() == MAYBE) {
                 server.pleasePlay(i);
                 return true;
             }
@@ -730,11 +744,9 @@ bool SmartBot::maybePlayMysteryCard(Server &server)
 
 bool SmartBot::maybeDiscardOldCard(Server &server)
 {
-    for (int i=0; i < 4; ++i) {
-        const CardKnowledge &knol = handKnowledge_[me_][i];
-        assert(knol.playable() != YES);
-        if (knol.valuable() == YES) continue;
-        server.pleaseDiscard(i);
+    const int best_index = nextDiscardIndex(server, me_);
+    if (best_index != -1) {
+        server.pleaseDiscard(best_index);
         return true;
     }
     /* I didn't find anything I was willing to discard. */

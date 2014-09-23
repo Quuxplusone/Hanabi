@@ -27,8 +27,6 @@ struct CardKnowledge {
     void setIsWorthless(const SmartBot &bot, const Hanabi::Server &server, bool knownWorthless);
     void update(const Hanabi::Server &server, const SmartBot &bot, bool useMyEyesight);
 
-    bool couldBePlayable(const Hanabi::Server &server) const;
-
     trivalue playable() const { return playable_; }
     trivalue valuable() const { return valuable_; }
     trivalue worthless() const { return worthless_; }
