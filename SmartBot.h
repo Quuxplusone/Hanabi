@@ -4,7 +4,7 @@
 class SmartBot;
 
 enum trivalue {
-    NO_OR_MAYBE, YES
+    NO, MAYBE, YES
 };
 
 struct CardKnowledge {

@@ -23,7 +23,7 @@ CardKnowledge::CardKnowledge()
     color_ = -1;
     value_ = -1;
     std::memset(cantBe_, '\0', sizeof cantBe_);
-    playable_ = valuable_ = worthless_ = NO_OR_MAYBE;
+    playable_ = valuable_ = worthless_ = MAYBE;
 }
 
 bool CardKnowledge::mustBe(Hanabi::Color color) const { return (this->color_ == color); }
@@ -82,12 +82,7 @@ void CardKnowledge::setCannotBe(Hanabi::Value value)
 
 bool CardKnowledge::couldBePlayable(const Hanabi::Server &server) const
 {
-    if (playable_ == YES) return true;
-    for (Color k = RED; k <= BLUE; ++k) {
-        const int playableValue = server.pileOf(k).size() + 1;
-        if (playableValue <= 5 && !cantBe_[k][playableValue]) return true;
-    }
-    return false;
+    return (playable_ != NO);
 }
 
 void CardKnowledge::setIsPlayable(const Server& server, bool knownPlayable)
@@ -101,7 +96,7 @@ void CardKnowledge::setIsPlayable(const Server& server, bool knownPlayable)
             }
         }
     }
-    this->playable_ = (knownPlayable ? YES : NO_OR_MAYBE);
+    this->playable_ = (knownPlayable ? YES : NO);
 }
 
 void CardKnowledge::setIsValuable(const SmartBot &bot, const Server& server, bool knownValuable)
@@ -114,7 +109,7 @@ void CardKnowledge::setIsValuable(const SmartBot &bot, const Server& server, boo
             }
         }
     }
-    this->valuable_ = (knownValuable ? YES : NO_OR_MAYBE);
+    this->valuable_ = (knownValuable ? YES : NO);
 }
 
 void CardKnowledge::setIsWorthless(const SmartBot &bot, const Server& server, bool knownWorthless)
@@ -127,7 +122,7 @@ void CardKnowledge::setIsWorthless(const SmartBot &bot, const Server& server, bo
             }
         }
     }
-    this->worthless_ = (knownWorthless ? YES : NO_OR_MAYBE);
+    this->worthless_ = (knownWorthless ? YES : NO);
 }
 
 void CardKnowledge::update(const Server &server, const SmartBot &bot, bool useMyEyesight)
@@ -215,13 +210,13 @@ void CardKnowledge::update(const Server &server, const SmartBot &bot, bool useMy
         assert(yesP || noP);
         assert(yesV || noV);
         assert(yesW || noW);
-        this->playable_ = (yesP ? (noP ? NO_OR_MAYBE : YES) : NO_OR_MAYBE);
-        this->valuable_ = (yesV ? (noV ? NO_OR_MAYBE : YES) : NO_OR_MAYBE);
-        this->worthless_ = (yesW ? (noW ? NO_OR_MAYBE : YES) : NO_OR_MAYBE);
+        this->playable_ = (yesP ? (noP ? MAYBE : YES) : NO);
+        this->valuable_ = (yesV ? (noV ? MAYBE : YES) : NO);
+        this->worthless_ = (yesW ? (noW ? MAYBE : YES) : NO);
     }
 
-    if (worthless_ == YES) assert(valuable_ != YES);
-    if (worthless_ == YES) assert(playable_ != YES);
+    if (worthless_ == YES) assert(valuable_ == NO);
+    if (worthless_ == YES) assert(playable_ == NO);
 }
 
 Hint::Hint()
