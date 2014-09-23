@@ -430,6 +430,7 @@ void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
         CardKnowledge &knol = handKnowledge_[to][i];
         if (vector_contains(card_indices, i)) {
             knol.setMustBe(color);
+            knol.update(server, *this, false);
             if (knol.couldBePlayable(server)) {
                 knol.setIsPlayable(server, true);
             }
@@ -481,6 +482,7 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
         CardKnowledge &knol = handKnowledge_[to][i];
         if (vector_contains(card_indices, i)) {
             knol.setMustBe(value);
+            knol.update(server, *this, false);
             if (!isWarning && !isHintStoneReclaim && knol.couldBePlayable(server)) {
                 knol.setIsPlayable(server, true);
             }
