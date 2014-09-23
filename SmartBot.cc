@@ -23,9 +23,7 @@ CardKnowledge::CardKnowledge()
     color_ = -1;
     value_ = -1;
     std::memset(cantBe_, '\0', sizeof cantBe_);
-    isPlayable = false;
-    isValuable = false;
-    isWorthless = false;
+    playable_ = valuable_ = worthless_ = NO_OR_MAYBE;
 }
 
 bool CardKnowledge::mustBe(Hanabi::Color color) const { return (this->color_ == color); }
@@ -84,7 +82,7 @@ void CardKnowledge::setCannotBe(Hanabi::Value value)
 
 bool CardKnowledge::couldBePlayable(const Hanabi::Server &server) const
 {
-    if (isPlayable) return true;
+    if (playable_ == YES) return true;
     for (Color k = RED; k <= BLUE; ++k) {
         const int playableValue = server.pileOf(k).size() + 1;
         if (playableValue <= 5 && !cantBe_[k][playableValue]) return true;
@@ -103,7 +101,7 @@ void CardKnowledge::setIsPlayable(const Server& server, bool knownPlayable)
             }
         }
     }
-    this->isPlayable = knownPlayable;
+    this->playable_ = (knownPlayable ? YES : NO_OR_MAYBE);
 }
 
 void CardKnowledge::setIsValuable(const SmartBot &bot, const Server& server, bool knownValuable)
@@ -116,7 +114,7 @@ void CardKnowledge::setIsValuable(const SmartBot &bot, const Server& server, boo
             }
         }
     }
-    this->isValuable = knownValuable;
+    this->valuable_ = (knownValuable ? YES : NO_OR_MAYBE);
 }
 
 void CardKnowledge::setIsWorthless(const SmartBot &bot, const Server& server, bool knownWorthless)
@@ -129,7 +127,7 @@ void CardKnowledge::setIsWorthless(const SmartBot &bot, const Server& server, bo
             }
         }
     }
-    this->isWorthless = knownWorthless;
+    this->worthless_ = (knownWorthless ? YES : NO_OR_MAYBE);
 }
 
 void CardKnowledge::update(const Server &server, const SmartBot &bot, bool useMyEyesight)
@@ -217,13 +215,13 @@ void CardKnowledge::update(const Server &server, const SmartBot &bot, bool useMy
         assert(yesP || noP);
         assert(yesV || noV);
         assert(yesW || noW);
-        this->isPlayable = !noP;
-        this->isValuable = !noV;
-        this->isWorthless = !noW;
+        this->playable_ = (yesP ? (noP ? NO_OR_MAYBE : YES) : NO_OR_MAYBE);
+        this->valuable_ = (yesV ? (noV ? NO_OR_MAYBE : YES) : NO_OR_MAYBE);
+        this->worthless_ = (yesW ? (noW ? NO_OR_MAYBE : YES) : NO_OR_MAYBE);
     }
 
-    if (isWorthless) assert(!isValuable);
-    if (isWorthless) assert(!isPlayable);
+    if (worthless_ == YES) assert(valuable_ != YES);
+    if (worthless_ == YES) assert(playable_ != YES);
 }
 
 Hint::Hint()
@@ -408,8 +406,8 @@ void SmartBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, i
 
     Card card = server.activeCard();
 
-    assert(!handKnowledge_[from][card_index].isWorthless);
-    if (handKnowledge_[from][card_index].isValuable) {
+    assert(handKnowledge_[from][card_index].worthless() != YES);
+    if (handKnowledge_[from][card_index].valuable() == YES) {
         /* We weren't wrong about this card being valuable, were we? */
         assert(this->isValuable(server, card));
     }
@@ -445,11 +443,11 @@ int SmartBot::nextDiscardIndex(const Hanabi::Server &server, int to) const
 {
     const int numCards = server.sizeOfHandOfPlayer(to);
     for (int i=0; i < numCards; ++i) {
-        if (handKnowledge_[to][i].isPlayable) return -1;
-        if (handKnowledge_[to][i].isWorthless) return -1;
+        if (handKnowledge_[to][i].playable() == YES) return -1;
+        if (handKnowledge_[to][i].worthless() == YES) return -1;
     }
     for (int i=0; i < numCards; ++i) {
-        if (!handKnowledge_[to][i].isValuable) return i;
+        if (handKnowledge_[to][i].valuable() != YES) return i;
     }
     return -1;
 }
@@ -513,7 +511,7 @@ bool SmartBot::maybePlayLowestPlayableCard(Server &server)
     int best_index = -1;
     int best_fitness = 0;
     for (int i=0; i < 4; ++i) {
-        if (!eyeKnol[i].isPlayable) continue;
+        if (eyeKnol[i].playable() != YES) continue;
 
         /* How many further plays are enabled by this play?
          * Rough heuristic: 5 minus its value. Notice that this
@@ -523,7 +521,7 @@ bool SmartBot::maybePlayLowestPlayableCard(Server &server)
          * TODO: avoid stepping on other players' plays.
          */
         int fitness = (6 - eyeKnol[i].value());
-        if (!handKnowledge_[me_][i].isPlayable) fitness += 100;
+        if (handKnowledge_[me_][i].playable() != YES) fitness += 100;
         if (fitness > best_fitness) {
             best_index = i;
             best_fitness = fitness;
@@ -543,7 +541,7 @@ bool SmartBot::maybeDiscardWorthlessCard(Server &server)
 {
     for (int i=0; i < 4; ++i) {
         const CardKnowledge &knol = handKnowledge_[me_][i];
-        if (knol.isWorthless) {
+        if (knol.worthless() == YES) {
             server.pleaseDiscard(i);
             return true;
         }
@@ -579,9 +577,9 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
             const CardKnowledge &knol = handKnowledge_[partner][c];
             if (partners_hand[c].color != color) continue;
             if (is_really_playable[c]) {
-                playability_content += !knol.isPlayable;
+                playability_content += (knol.playable() != YES);
                 color_content += (knol.color() == -1);
-            } else if (!knol.isWorthless) {
+            } else if (knol.worthless() != YES) {
                 if (!knol.cannotBe(Card(color, playableValue))) {
                     misinformative = true;
                     break;
@@ -617,9 +615,9 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
             const CardKnowledge &knol = handKnowledge_[partner][c];
             if (partners_hand[c].value != value) continue;
             if (is_really_playable[c]) {
-                playability_content += !knol.isPlayable;
+                playability_content += (knol.playable() != YES);
                 value_content += (knol.value() == -1);
-            } else if (!knol.isWorthless) {
+            } else if (knol.worthless() != YES) {
                 /* We're proposing to give a value hint that includes this unplayable card.
                  * If this card could legitimately be of a playable color, then our proposed
                  * hint is misinformative. */
@@ -664,9 +662,9 @@ bool SmartBot::maybeGiveValuableWarning(Server &server)
     }
 
     /* Oh no! Warn him before he discards it! */
-    assert(!handKnowledge_[player_to_warn][discardIndex].isValuable);
-    assert(!handKnowledge_[player_to_warn][discardIndex].isPlayable);
-    assert(!handKnowledge_[player_to_warn][discardIndex].isWorthless);
+    assert(handKnowledge_[player_to_warn][discardIndex].playable() != YES);
+    assert(handKnowledge_[player_to_warn][discardIndex].valuable() != YES);
+    assert(handKnowledge_[player_to_warn][discardIndex].worthless() != YES);
 
     Hint bestHint = bestHintForPlayer(server, player_to_warn);
     if (bestHint.fitness > 0) {
@@ -722,9 +720,9 @@ bool SmartBot::maybePlayMysteryCard(Server &server)
         for (int i=3; i >= 0; --i) {
             CardKnowledge eyeKnol = handKnowledge_[me_][i];
             eyeKnol.update(server, *this, /*useMyEyesight=*/true);
-            assert(!eyeKnol.isPlayable);  /* or we would have played it already */
+            assert(eyeKnol.playable() != YES);  /* or we would have played it already */
             if (eyeKnol.couldBePlayable(server)) {
-                assert(!eyeKnol.isWorthless);
+                assert(eyeKnol.worthless() != YES);
                 server.pleasePlay(i);
                 return true;
             }
@@ -737,8 +735,8 @@ bool SmartBot::maybeDiscardOldCard(Server &server)
 {
     for (int i=0; i < 4; ++i) {
         const CardKnowledge &knol = handKnowledge_[me_][i];
-        assert(!knol.isPlayable);
-        if (knol.isValuable) continue;
+        assert(knol.playable() != YES);
+        if (knol.valuable() == YES) continue;
         server.pleaseDiscard(i);
         return true;
     }
@@ -779,7 +777,7 @@ void SmartBot::pleaseMakeMove(Server &server)
          * to discard the one of them that will block our progress the least. */
         int best_index = 0;
         for (int i=0; i < 4; ++i) {
-            assert(handKnowledge_[me_][i].isValuable);
+            assert(handKnowledge_[me_][i].valuable() == YES);
             if (handKnowledge_[me_][i].value() > handKnowledge_[me_][best_index].value()) {
                 best_index = i;
             }

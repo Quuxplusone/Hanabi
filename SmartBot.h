@@ -3,6 +3,10 @@
 
 class SmartBot;
 
+enum trivalue {
+    NO_OR_MAYBE, YES
+};
+
 struct CardKnowledge {
     CardKnowledge();
 
@@ -25,14 +29,17 @@ struct CardKnowledge {
 
     bool couldBePlayable(const Hanabi::Server &server) const;
 
-    bool isPlayable;
-    bool isValuable;
-    bool isWorthless;
+    trivalue playable() const { return playable_; }
+    trivalue valuable() const { return valuable_; }
+    trivalue worthless() const { return worthless_; }
 
 private:
     bool cantBe_[Hanabi::NUMCOLORS][5+1];
     int color_;
     int value_;
+    trivalue playable_;
+    trivalue valuable_;
+    trivalue worthless_;
 };
 
 struct Hint {
