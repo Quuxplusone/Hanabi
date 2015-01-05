@@ -1,9 +1,6 @@
 
 ifeq ($(FAST),1)
   CXXFLAGS += -O3 -DNDEBUG
-  ifndef OPENMP
-    OPENMP := 1
-  endif
 endif
 
 ifeq ($(OPENMP),1)

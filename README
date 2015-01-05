@@ -6,8 +6,8 @@ The framework now respects all the official rules of Hanabi!
 
 Typing "make" will build all of the bots that the Makefile knows about.
 
-Typing "make FAST=1" will use faster "release build" options. This includes
-enabling parallel processing with OpenMP, unless you also pass OPENMP=0.
+Typing "make FAST=1" will use faster "release build" options.
+Appending "OPENMP=1" will enable parallel processing with OpenMP.
 
 ./run_BlindBot
   (blindly plays a random card each time: avg score 1.26-)

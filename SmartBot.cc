@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdlib>
+#include <cstring>
 #include "Hanabi.h"
 #include "SmartBot.h"
 
