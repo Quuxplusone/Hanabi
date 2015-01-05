@@ -278,6 +278,11 @@ int Server::hintStonesRemaining() const
     return hintStonesRemaining_;
 }
 
+bool Server::discardingIsAllowed() const
+{
+    return (hintStonesRemaining_ != NUMHINTS);
+}
+
 int Server::mulligansUsed() const
 {
     assert(mulligansRemaining_ <= NUMMULLIGANS);
@@ -301,7 +306,7 @@ Card Server::pleaseDiscard(int index)
     if (movesFromActivePlayer_ > 0) throw std::runtime_error("bot attempted to move twice");
     if (movesFromActivePlayer_ < 0) throw std::runtime_error("called pleaseDiscard() from the wrong observer");
     if (index < 0 || hands_[activePlayer_].size() <= index) throw std::runtime_error("invalid card index");
-    if (hintStonesRemaining_ == NUMHINTS) throw std::runtime_error("all hint stones are already available");
+    if (!discardingIsAllowed()) throw std::runtime_error("all hint stones are already available");
 
     Card discardedCard = hands_[activePlayer_][index];
     activeCard_ = discardedCard;

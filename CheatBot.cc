@@ -154,7 +154,7 @@ static bool noWorthlessOrDuplicateCardsVisible(const Server& server)
 
 bool CheatBot::tryHardToDisposeOf(Server& server, int card_index)
 {
-    if (server.hintStonesRemaining() < Hanabi::NUMHINTS) {
+    if (server.discardingIsAllowed()) {
         server.pleaseDiscard(card_index);
         return true;
     } else if (server.mulligansRemaining() >= 2) {
@@ -196,7 +196,7 @@ bool CheatBot::maybeDiscardWorthlessCard(Server &server)
 
 bool CheatBot::maybeDiscardDuplicateCard(Server &server)
 {
-    if (server.hintStonesRemaining() == Hanabi::NUMHINTS) return false;
+    if (!server.discardingIsAllowed()) return false;
 
     for (int i=0; i < hands[me_].size(); ++i) {
         Card card = hands[me_][i];
@@ -211,7 +211,7 @@ bool CheatBot::maybeDiscardDuplicateCard(Server &server)
 
 bool CheatBot::maybePlayProbabilities(Server &server)
 {
-    if (server.hintStonesRemaining() == Hanabi::NUMHINTS) return false;
+    if (!server.discardingIsAllowed()) return false;
 
     int bestGap = 0;
     int bestIndex = -1;

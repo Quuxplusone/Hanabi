@@ -108,8 +108,6 @@ struct Server {
      * of those functions. */
     Card activeCard() const;
 
-    bool discardingIsAllowed() const;
-
     /* Observe the pile of the given color. */
     Pile pileOf(Color color) const;
 
@@ -126,6 +124,10 @@ struct Server {
      * These two numbers always sum to NUMHINTS. */
     int hintStonesUsed() const;
     int hintStonesRemaining() const;
+
+    /* Returns true if discarding is allowed; that is, if
+     * there is at least one hint-stone used at the moment. */
+    bool discardingIsAllowed() const;
 
     /* Returns the number of mulligan-stones used,
      * or the number remaining in the middle of the table.

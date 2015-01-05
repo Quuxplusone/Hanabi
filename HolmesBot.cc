@@ -389,7 +389,7 @@ void HolmesBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, i
         vector_contains(card_indices, discardIndex) &&
         couldBeValuable(server, handKnowledge_[to][discardIndex], value);
     const bool isHintStoneReclaim =
-        (server.hintStonesRemaining() == Hanabi::NUMHINTS) &&
+        (!server.discardingIsAllowed()) &&
         (from == (to+1) % server.numPlayers()) &&
         vector_contains(card_indices, 0);
 
@@ -680,7 +680,7 @@ void HolmesBot::pleaseMakeMove(Server &server)
      * the hint stones, so in that case, just hint to the player on our right
      * about his oldest card. */
 
-    if (server.hintStonesRemaining() == Hanabi::NUMHINTS) {
+    if (!server.discardingIsAllowed()) {
         const int numPlayers = server.numPlayers();
         const int right_partner = (me_ + numPlayers - 1) % numPlayers;
         server.pleaseGiveValueHint(right_partner, server.handOfPlayer(right_partner)[0].value);
