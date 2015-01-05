@@ -204,12 +204,12 @@ void Hint::give(Server &server)
     }
 }
 
-HolmesBot::HolmesBot(int index, int numPlayers)
+HolmesBot::HolmesBot(int index, int numPlayers, int handSize)
 {
     me_ = index;
     handKnowledge_.resize(numPlayers);
     for (int i=0; i < numPlayers; ++i) {
-        handKnowledge_[i].resize(4);
+        handKnowledge_[i].resize(handSize);
     }
     std::memset(playedCount_, '\0', sizeof playedCount_);
 }
@@ -238,7 +238,6 @@ void HolmesBot::invalidateKnol(int player_index, int card_index)
 {
     /* The other cards are shifted down and a new one drawn at the end. */
     std::vector<CardKnowledge> &vec = handKnowledge_[player_index];
-    assert(vec.size() == 4);
     for (int i = card_index; i+1 < vec.size(); ++i) {
         vec[i] = vec[i+1];
     }
@@ -280,6 +279,13 @@ bool HolmesBot::updateLocatedCount(const Hanabi::Server& server)
 void HolmesBot::pleaseObserveBeforeMove(const Server &server)
 {
     assert(server.whoAmI() == me_);
+    myHandSize_ = server.sizeOfHandOfPlayer(me_);
+
+    for (int p=0; p < handKnowledge_.size(); ++p) {
+        const int numCards = server.sizeOfHandOfPlayer(p);
+        assert(handKnowledge_[p].size() >= numCards);
+        handKnowledge_[p].resize(numCards);
+    }
 
     std::memset(this->locatedCount_, '\0', sizeof this->locatedCount_);
     this->updateLocatedCount(server);
@@ -429,7 +435,7 @@ void HolmesBot::wipeOutPlayables(const Card &card)
 {
     const int numPlayers = handKnowledge_.size();
     for (int player = 0; player < numPlayers; ++player) {
-        for (int c = 0; c < 4; ++c) {
+        for (int c = 0; c < handKnowledge_[player].size(); ++c) {
             CardKnowledge &knol = handKnowledge_[player][c];
             if (!knol.isPlayable) continue;
             if (knol.isValuable) continue;
@@ -483,7 +489,7 @@ Hint HolmesBot::bestHintForPlayer(const Server &server, int partner) const
     assert(partner != me_);
     const std::vector<Card> partners_hand = server.handOfPlayer(partner);
 
-    bool is_really_playable[4];
+    bool is_really_playable[5];
     for (int c=0; c < partners_hand.size(); ++c) {
         is_really_playable[c] =
             server.pileOf(partners_hand[c].color).nextValueIs(partners_hand[c].value);
@@ -625,7 +631,7 @@ bool HolmesBot::maybePlayMysteryCard(Server &server)
          * an option; so let's do something that forces us to draw a card.
          * At this point, we might as well try to play something random
          * and hope we get lucky. */
-        for (int i=3; i >= 0; --i) {
+        for (int i = myHandSize_ - 1; i >= 0; --i) {
             const CardKnowledge &knol = handKnowledge_[me_][i];
             assert(!knol.isPlayable);  /* or we would have played it already */
             if (knol.isWorthless) continue;
@@ -643,7 +649,7 @@ bool HolmesBot::maybePlayMysteryCard(Server &server)
 
 bool HolmesBot::maybeDiscardOldCard(Server &server)
 {
-    for (int i=0; i < 4; ++i) {
+    for (int i=0; i < myHandSize_; ++i) {
         const CardKnowledge &knol = handKnowledge_[me_][i];
         assert(!knol.isPlayable);
         if (knol.isValuable) continue;
@@ -686,7 +692,7 @@ void HolmesBot::pleaseMakeMove(Server &server)
          * that my whole hand is composed of valuable cards, and I just have
          * to discard the one of them that will block our progress the least. */
         int best_index = 0;
-        for (int i=0; i < 4; ++i) {
+        for (int i=0; i < myHandSize_; ++i) {
             assert(handKnowledge_[me_][i].isValuable);
             if (handKnowledge_[me_][i].value() > handKnowledge_[me_][best_index].value()) {
                 best_index = i;

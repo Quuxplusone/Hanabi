@@ -230,7 +230,7 @@ struct Bot {
 };
 
 struct BotFactory {
-    virtual Bot *create(int index, int numPlayers) const = 0;
+    virtual Bot *create(int index, int numPlayers, int handSize) const = 0;
     virtual void destroy(Bot *bot) const = 0;
 };
 

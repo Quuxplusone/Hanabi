@@ -15,7 +15,7 @@ class CheatBot : public Hanabi::Bot {
     bool tryHardToDisposeOf(Hanabi::Server &, int card_index);
 
   public:
-    CheatBot(int index, int numPlayers);
+    CheatBot(int index, int numPlayers, int handSize);
     virtual void pleaseObserveBeforeMove(const Hanabi::Server &);
     virtual void pleaseMakeMove(Hanabi::Server &);
       virtual void pleaseObserveBeforeDiscard(const Hanabi::Server &, int from, int card_index);

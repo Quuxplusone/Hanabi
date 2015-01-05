@@ -35,7 +35,7 @@ class SimpleBot : public Hanabi::Bot {
     bool maybeGiveHelpfulHint(Hanabi::Server &server);
 
   public:
-    SimpleBot(int index, int numPlayers);
+    SimpleBot(int index, int numPlayers, int handSize);
     virtual void pleaseObserveBeforeMove(const Hanabi::Server &);
     virtual void pleaseMakeMove(Hanabi::Server &);
       virtual void pleaseObserveBeforeDiscard(const Hanabi::Server &, int from, int card_index);

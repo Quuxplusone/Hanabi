@@ -7,24 +7,44 @@
 #include <vector>
 #include "Hanabi.h"
 
-static std::string nth(int n)
+static std::string nth(int n, int total)
 {
-    switch (n) {
-        case 0: return "oldest";
-        case 1: return "second-oldest";
-        case 2: return "second-newest";
-        default: assert(n == 3); return "newest";
+    if (total == 5) {
+        switch (n) {
+            case 0: return "oldest";
+            case 1: return "second-oldest";
+            case 2: return "middle";
+            case 3: return "second-newest";
+            default: assert(n == 4); return "newest";
+        }
+    } else if (total == 4) {
+        switch (n) {
+            case 0: return "oldest";
+            case 1: return "second-oldest";
+            case 2: return "second-newest";
+            default: assert(n == 3); return "newest";
+        }
+    } else {
+        assert(total == 3);
+        switch (n) {
+            case 0: return "oldest";
+            case 1: return "middle";
+            default: assert(n == 2); return "newest";
+        }
     }
 }
 
-static std::string nth(const std::vector<int> &ns)
+static std::string nth(const std::vector<int> &ns, int total)
 {
     std::string result;
     assert(!ns.empty());
     switch (ns.size()) {
-        case 1: return nth(ns[0]);
-        case 2: return nth(ns[0]) + " and " + nth(ns[1]);
-        default: assert(ns.size() == 3); return nth(ns[0]) + ", " + nth(ns[1]) + ", and " + nth(ns[2]);
+        case 1: return nth(ns[0], total);
+        case 2: return nth(ns[0], total) + " and " + nth(ns[1], total);
+        case 3: return nth(ns[0], total) + ", " + nth(ns[1], total) + ", and " + nth(ns[2], total);
+        default:
+            assert(ns.size() == 4);
+            return nth(ns[0], total) + ", " + nth(ns[1], total) + ", " + nth(ns[2], total) + ", and " + nth(ns[3], total);
     }
 }
 
@@ -121,11 +141,13 @@ int Server::runGame(const BotFactory &botFactory, int numPlayers)
 
 int Server::runGame(const BotFactory &botFactory, int numPlayers, const std::vector<Card>& stackedDeck)
 {
+    const int initialHandSize = (numPlayers <= 3) ? 5 : 4;
+
     /* Create and initialize the bots. */
     numPlayers_ = numPlayers;
     players_.resize(numPlayers);
     for (int i=0; i < numPlayers; ++i) {
-        players_[i] = botFactory.create(i, numPlayers);
+        players_[i] = botFactory.create(i, numPlayers, initialHandSize);
     }
 
     /* Initialize the piles and stones. */
@@ -158,7 +180,7 @@ int Server::runGame(const BotFactory &botFactory, int numPlayers, const std::vec
     hands_.resize(numPlayers);
     for (int i=0; i < numPlayers; ++i) {
         hands_[i].clear();
-        for (int k=0; k < 4; ++k) {
+        for (int k=0; k < initialHandSize; ++k) {
             hands_[i].push_back(this->draw_());
         }
     }
@@ -300,7 +322,7 @@ Card Server::pleaseDiscard(int index)
 
     if (log_) {
         (*log_) << "Player " << activePlayer_
-                << " discarded his " << nth(index)
+                << " discarded his " << nth(index, hands_[activePlayer_].size())
                 << " card (" << discardedCard.toString() << ").\n";
     }
 
@@ -351,7 +373,7 @@ Card Server::pleasePlay(int index)
     if (pile.nextValueIs(selectedCard.value)) {
         if (log_) {
             (*log_) << "Player " << activePlayer_
-                    << " played his " << nth(index)
+                    << " played his " << nth(index, hands_[activePlayer_].size())
                     << " card (" << selectedCard.toString() << ").\n";
         }
         pile.increment_();
@@ -364,7 +386,7 @@ Card Server::pleasePlay(int index)
         /* The card was unplayable! */
         if (log_) {
             (*log_) << "Player " << activePlayer_
-                    << " tried to play his " << nth(index)
+                    << " tried to play his " << nth(index, hands_[activePlayer_].size())
                     << " card (" << selectedCard.toString() << ")"
                     << " but failed.\n";
         }
@@ -417,7 +439,7 @@ void Server::pleaseGiveColorHint(int to, Color color)
         if (card_indices.size() == hands_[to].size()) {
             (*log_) << "whole hand was ";
         } else {
-            (*log_) << nth(card_indices)
+            (*log_) << nth(card_indices, hands_[to].size())
                 << (singular ? " card was " : " cards were ");
         }
         (*log_) << colorname(color) << ".\n";
@@ -463,7 +485,7 @@ void Server::pleaseGiveValueHint(int to, Value value)
         if (card_indices.size() == hands_[to].size()) {
             (*log_) << "whole hand was ";
         } else {
-            (*log_) << nth(card_indices)
+            (*log_) << nth(card_indices, hands_[to].size())
                 << (singular ? " card was " : " cards were ");
         }
         (*log_) << value

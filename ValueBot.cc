@@ -77,12 +77,12 @@ void Hint::give(Server &server)
     }
 }
 
-ValueBot::ValueBot(int index, int numPlayers)
+ValueBot::ValueBot(int index, int numPlayers, int handSize)
 {
     me_ = index;
     handKnowledge_.resize(numPlayers);
     for (int i=0; i < numPlayers; ++i) {
-        handKnowledge_[i].resize(4);
+        handKnowledge_[i].resize(handSize);
     }
     for (Color k = RED; k <= BLUE; ++k) {
         for (int v = 1; v <= 5; ++v) {
@@ -117,7 +117,6 @@ void ValueBot::invalidateKnol(int player_index, int card_index)
 {
     /* The other cards are shifted down and a new one drawn at the end. */
     std::vector<CardKnowledge> &vec = handKnowledge_[player_index];
-    assert(vec.size() == 4);
     for (int i = card_index; i+1 < vec.size(); ++i) {
         vec[i] = vec[i+1];
     }
@@ -149,6 +148,7 @@ void ValueBot::makeThisValueWorthless(const Hanabi::Server &server, Value value)
 void ValueBot::pleaseObserveBeforeMove(const Server &server)
 {
     assert(server.whoAmI() == me_);
+    myHandSize_ = server.sizeOfHandOfPlayer(me_);
 }
 
 void ValueBot::pleaseObserveBeforeDiscard(const Hanabi::Server &server, int from, int card_index)
@@ -307,7 +307,7 @@ bool ValueBot::maybePlayLowestPlayableCard(Server &server)
     /* Find the lowest-valued playable card in my hand. */
     int best_index = -1;
     int best_value = 6;
-    for (int i=0; i < 4; ++i) {
+    for (int i=0; i < myHandSize_; ++i) {
         const CardKnowledge &knol = handKnowledge_[me_][i];
         if (knol.isPlayable && knol.value() < best_value) {
             best_index = i;
@@ -327,7 +327,7 @@ bool ValueBot::maybePlayLowestPlayableCard(Server &server)
 
 bool ValueBot::maybeDiscardWorthlessCard(Server &server)
 {
-    for (int i=0; i < 4; ++i) {
+    for (int i=0; i < myHandSize_; ++i) {
         const CardKnowledge &knol = handKnowledge_[me_][i];
         if (knol.isWorthless) {
             server.pleaseDiscard(i);
@@ -343,7 +343,7 @@ Hint ValueBot::bestHintForPlayer(const Server &server, int partner) const
     assert(partner != me_);
     const std::vector<Card> partners_hand = server.handOfPlayer(partner);
 
-    bool is_really_playable[4];
+    bool is_really_playable[5];
     for (int c=0; c < partners_hand.size(); ++c) {
         is_really_playable[c] =
             server.pileOf(partners_hand[c].color).nextValueIs(partners_hand[c].value);
@@ -474,7 +474,7 @@ bool ValueBot::maybeGiveHelpfulHint(Server &server)
 
 bool ValueBot::maybeDiscardOldCard(Server &server)
 {
-    for (int i=0; i < 4; ++i) {
+    for (int i=0; i < myHandSize_; ++i) {
         const CardKnowledge &knol = handKnowledge_[me_][i];
         assert(!knol.isPlayable);
         if (knol.isValuable) continue;
@@ -515,7 +515,7 @@ void ValueBot::pleaseMakeMove(Server &server)
          * that my whole hand is composed of valuable cards, and I just have
          * to discard the one of them that will block our progress the least. */
         int best_index = 0;
-        for (int i=0; i < 4; ++i) {
+        for (int i=0; i < myHandSize_; ++i) {
             assert(handKnowledge_[me_][i].isValuable);
             if (handKnowledge_[me_][i].value() > handKnowledge_[me_][best_index].value()) {
                 best_index = i;

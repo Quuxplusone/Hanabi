@@ -5,22 +5,29 @@ http://www.rnrgames.com/images/ProductRules/hanabiRules.PDF
 The framework now respects all the official rules of Hanabi!
 
 Typing "make" will build all of the bots that the Makefile knows about.
-
 Typing "make FAST=1" will use faster "release build" options.
 Appending "OPENMP=1" will enable parallel processing with OpenMP.
 
-./run_BlindBot
-  (blindly plays a random card each time: avg score 1.26-)
-./run_SimpleBot
-  (hints about playable cards: avg score 18.80+)
-./run_ValueBot
-  (also warns about valuable cards: avg score 20.43-)
-./run_HolmesBot
-  (also performs inferences, and uses mulligans: avg score 21.69+)
-./run_SmartBot
-  (prefers to play cards its partners don't know it knows: avg score 22.30+, 9.2% perfect)
-./run_CheatBot
-  (secretly radios its partners: avg score 24.95+, 96.84% perfect)
+There are six bots provided:
+
+    BlindBot (blindly plays a random card each time)
+    SimpleBot (hints about playable cards)
+    ValueBot (also warns about valuable cards)
+    HolmesBot (also performs inferences, and uses mulligans)
+    SmartBot (prefers to play cards its partners don't know it knows)
+    CheatBot (secretly radios its partners; that is, cheats)
+
+To run a bot, the command is e.g. "./run_BlindBot".
+
+Current average scores (and percent perfect games) per bot, for 2-4 players:
+
+         2p               3p               4p
+Blind     1.25             1.25             1.26
+Simple   16.91            18.47            19.33
+Value    19.79            19.42            19.40
+Holmes   20.75  (5.28%)   20.86  (0.38%)   20.47  (0.04%)
+Smart    21.92 (11.09%)   21.82  (2.51%)   21.29  (0.33%)
+Cheat    24.90 (93.93%)   24.98 (98.29%)   24.97 (97.93%)
 
 The interesting thing about CheatBot is that the perfect strategy is
 difficult to compute, even when hints are redundant.

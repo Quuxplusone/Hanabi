@@ -36,6 +36,7 @@ struct Hint {
 class ValueBot : public Hanabi::Bot {
 
     int me_;
+    int myHandSize_;  /* purely for convenience */
 
     /* What does each player know about his own hand? */
     std::vector<std::vector<CardKnowledge> > handKnowledge_;
@@ -66,7 +67,7 @@ class ValueBot : public Hanabi::Bot {
     bool maybeDiscardOldCard(Hanabi::Server &server);
 
   public:
-    ValueBot(int index, int numPlayers);
+    ValueBot(int index, int numPlayers, int handSize);
     virtual void pleaseObserveBeforeMove(const Hanabi::Server &);
     virtual void pleaseMakeMove(Hanabi::Server &);
       virtual void pleaseObserveBeforeDiscard(const Hanabi::Server &, int from, int card_index);

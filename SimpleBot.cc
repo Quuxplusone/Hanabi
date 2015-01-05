@@ -55,12 +55,12 @@ void CardKnowledge::setMustBe(Hanabi::Value value)
 }
 
 
-SimpleBot::SimpleBot(int index, int numPlayers)
+SimpleBot::SimpleBot(int index, int numPlayers, int handSize)
 {
     me_ = index;
     handKnowledge_.resize(numPlayers);
     for (int i=0; i < numPlayers; ++i) {
-        handKnowledge_[i].resize(4);
+        handKnowledge_[i].resize(handSize);
     }
 }
 
@@ -68,7 +68,6 @@ void SimpleBot::invalidateKnol(int player_index, int card_index)
 {
     /* The other cards are shifted down and a new one drawn at the end. */
     std::vector<CardKnowledge> &vec = handKnowledge_[player_index];
-    assert(vec.size() == 4);
     for (int i = card_index; i+1 < vec.size(); ++i) {
         vec[i] = vec[i+1];
     }
@@ -147,7 +146,7 @@ void SimpleBot::wipeOutPlayables(const Card &played_card)
 {
     const int numPlayers = handKnowledge_.size();
     for (int player = 0; player < numPlayers; ++player) {
-        for (int c = 0; c < 4; ++c) {
+        for (int c = 0; c < handKnowledge_[player].size(); ++c) {
             CardKnowledge &knol = handKnowledge_[player][c];
             if (!knol.isPlayable) continue;
             if (knol.mustBe(Value(5))) continue;
@@ -164,7 +163,7 @@ bool SimpleBot::maybePlayLowestPlayableCard(Server &server)
     /* Find the lowest-valued playable card in my hand. */
     int best_index = -1;
     int best_value = 6;
-    for (int i=0; i < 4; ++i) {
+    for (int i=0; i < handKnowledge_[me_].size(); ++i) {
         const CardKnowledge &knol = handKnowledge_[me_][i];
         if (knol.isPlayable && knol.value() < best_value) {
             best_index = i;
@@ -195,7 +194,7 @@ bool SimpleBot::maybeGiveHelpfulHint(Server &server)
         const int partner = (me_ + i) % numPlayers;
         assert(partner != me_);
         const std::vector<Card> partners_hand = server.handOfPlayer(partner);
-        bool is_really_playable[4];
+        bool is_really_playable[5];
         for (int c=0; c < partners_hand.size(); ++c) {
             is_really_playable[c] =
                 server.pileOf(partners_hand[c].color).nextValueIs(partners_hand[c].value);

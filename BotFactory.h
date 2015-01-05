@@ -7,7 +7,7 @@
 template<class SpecificBot>
 struct BotFactory : public Hanabi::BotFactory
 {
-    virtual Hanabi::Bot *create(int index, int numPlayers) const { return new SpecificBot(index, numPlayers); }
+    virtual Hanabi::Bot *create(int index, int numPlayers, int handSize) const { return new SpecificBot(index, numPlayers, handSize); }
     virtual void destroy(Hanabi::Bot *bot) const { delete bot; }
 };
 

@@ -88,8 +88,10 @@ static void usage(const char *why)
 {
     std::cout << why << "\n"
               << "Usage:\n"
-              << "    ./run_" stringify(BOTNAME) "Bot [options]\n"
+              << "    ./run_" stringify(BOTNAME) " [options]\n"
               << "        --quiet\n"
+              << "        --seed <0..>\n"
+              << "        --deck < input.deck (piped onto stdin)\n"
               << "        --players <2..10>\n"
               << "        --games <1000..2000000000>\n"
               << "        --every <1000..2000000000>\n";
@@ -172,7 +174,7 @@ int main(int argc, char **argv)
 
     if (seed <= 0) {
         std::srand(std::time(NULL));
-        seed = rand();
+        seed = std::rand();
     }
     printf("--seed %d\n", seed);
     std::srand(seed);

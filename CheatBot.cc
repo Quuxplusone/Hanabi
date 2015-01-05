@@ -37,7 +37,7 @@ static int visibleCopiesOf(Card card)
     return result;
 }
 
-CheatBot::CheatBot(int index, int n)
+CheatBot::CheatBot(int index, int n, int handSize)
 {
     me_ = index;
     numPlayers = n;
@@ -71,7 +71,7 @@ bool CheatBot::maybeEnablePlay(Server &server, int plus)
     int lowest_value = 5;
     int best_index = -1;
 
-    for (int i=0; i < 4; ++i) {
+    for (int i=0; i < hands[me_].size(); ++i) {
         Card card = hands[me_][i];
         if (card.value >= lowest_value) continue;
         if (!server.pileOf(card.color).nextValueIs(card.value)) continue;
@@ -99,7 +99,7 @@ bool CheatBot::maybePlayLowestPlayableCard(Server &server)
 
     int lowest_value = 10;
     int best_index = -1;
-    for (int i=0; i < 4; ++i) {
+    for (int i=0; i < hands[me_].size(); ++i) {
         Card card = hands[me_][i];
         if (server.pileOf(card.color).nextValueIs(card.value)) {
             if (card.value < lowest_value) {
@@ -169,7 +169,7 @@ bool CheatBot::tryHardToDisposeOf(Server& server, int card_index)
 
 bool CheatBot::maybeDiscardWorthlessCard(Server &server)
 {
-    for (int i=0; i < 4; ++i) {
+    for (int i=0; i < hands[me_].size(); ++i) {
         Card card = hands[me_][i];
         Pile pile = server.pileOf(card.color);
         if (pile.contains(card.value)) {
@@ -198,7 +198,7 @@ bool CheatBot::maybeDiscardDuplicateCard(Server &server)
 {
     if (server.hintStonesRemaining() == Hanabi::NUMHINTS) return false;
 
-    for (int i=0; i < 4; ++i) {
+    for (int i=0; i < hands[me_].size(); ++i) {
         Card card = hands[me_][i];
         if (visibleCopiesOf(card) > 1) {
             /* We have a duplicate of this card somewhere visible. */
@@ -216,7 +216,7 @@ bool CheatBot::maybePlayProbabilities(Server &server)
     int bestGap = 0;
     int bestIndex = -1;
 
-    for (int i=0; i < 4; ++i) {
+    for (int i=0; i < hands[me_].size(); ++i) {
         Card card = hands[me_][i];
         if (card.value == 5) continue;
         /* This codepath should be reached only after discarding
@@ -258,7 +258,7 @@ bool CheatBot::maybeTemporize(Server &server)
 void CheatBot::discardHighestCard(Server &server)
 {
     int bestIndex = 0;
-    for (int i=1; i < 4; ++i) {
+    for (int i=1; i < hands[me_].size(); ++i) {
         Card card = hands[me_][i];
         if (card.value > hands[me_][bestIndex].value) {
             bestIndex = i;

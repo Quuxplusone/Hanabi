@@ -235,12 +235,12 @@ void Hint::give(Server &server)
     }
 }
 
-SmartBot::SmartBot(int index, int numPlayers)
+SmartBot::SmartBot(int index, int numPlayers, int handSize)
 {
     me_ = index;
     handKnowledge_.resize(numPlayers);
     for (int i=0; i < numPlayers; ++i) {
-        handKnowledge_[i].resize(4);
+        handKnowledge_[i].resize(handSize);
     }
     std::memset(playedCount_, '\0', sizeof playedCount_);
 }
@@ -293,7 +293,6 @@ void SmartBot::invalidateKnol(int player_index, int card_index)
 {
     /* The other cards are shifted down and a new one drawn at the end. */
     std::vector<CardKnowledge> &vec = handKnowledge_[player_index];
-    assert(vec.size() == 4);
     for (int i = card_index; i+1 < vec.size(); ++i) {
         vec[i] = vec[i+1];
     }
@@ -314,7 +313,7 @@ void SmartBot::updateEyesightCount(const Server &server)
     const int numPlayers = handKnowledge_.size();
     for (int p=0; p < numPlayers; ++p) {
         if (p == me_) {
-            for (int i=0; i < server.sizeOfHandOfPlayer(me_); ++i) {
+            for (int i=0; i < myHandSize_; ++i) {
                 CardKnowledge &knol = handKnowledge_[p][i];
                 if (knol.color() != -1 && knol.value() != -1) {
                     this->eyesightCount_[knol.color()][knol.value()] += 1;
@@ -335,7 +334,7 @@ bool SmartBot::updateLocatedCount(const Hanabi::Server &server)
     int newCount[Hanabi::NUMCOLORS][5+1] = {};
 
     for (int p=0; p < handKnowledge_.size(); ++p) {
-        for (int i=0; i < server.sizeOfHandOfPlayer(p); ++i) {
+        for (int i=0; i < handKnowledge_[p].size(); ++i) {
             CardKnowledge &knol = handKnowledge_[p][i];
             int k = knol.color();
             if (k != -1) {
@@ -358,11 +357,19 @@ void SmartBot::pleaseObserveBeforeMove(const Server &server)
 {
     assert(server.whoAmI() == me_);
 
+    myHandSize_ = server.sizeOfHandOfPlayer(me_);
+
+    for (int p=0; p < handKnowledge_.size(); ++p) {
+        const int numCards = server.sizeOfHandOfPlayer(p);
+        assert(handKnowledge_[p].size() >= numCards);
+        handKnowledge_[p].resize(numCards);
+    }
+
     std::memset(this->locatedCount_, '\0', sizeof this->locatedCount_);
     this->updateLocatedCount(server);
     do {
         for (int p=0; p < handKnowledge_.size(); ++p) {
-            const int numCards = server.sizeOfHandOfPlayer(p);
+            const int numCards = handKnowledge_[p].size();
             for (int i=0; i < numCards; ++i) {
                 CardKnowledge &knol = handKnowledge_[p][i];
                 knol.update(server, *this, false);
@@ -434,7 +441,7 @@ void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
 
 int SmartBot::nextDiscardIndex(const Hanabi::Server &server, int to) const
 {
-    const int numCards = server.sizeOfHandOfPlayer(to);
+    const int numCards = handKnowledge_[to].size();
     int best_fitness = 0;
     int best_index = -1;
     for (int i=0; i < numCards; ++i) {
@@ -474,14 +481,15 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
      * Otherwise, all the named cards are playable. */
 
     const int discardIndex = this->nextDiscardIndex(server, to);
-    const bool isWarning =
-        (to == (from + 1) % handKnowledge_.size()) &&
-        vector_contains(card_indices, discardIndex) &&
-        couldBeValuableWithValue(server, handKnowledge_[to][discardIndex], value);
     const bool isHintStoneReclaim =
         (server.hintStonesRemaining() == Hanabi::NUMHINTS) &&
         (from == (to+1) % server.numPlayers()) &&
         vector_contains(card_indices, 0);
+    const bool isWarning =
+        !isHintStoneReclaim &&
+        (to == (from + 1) % handKnowledge_.size()) &&
+        vector_contains(card_indices, discardIndex) &&
+        couldBeValuableWithValue(server, handKnowledge_[to][discardIndex], value);
 
     if (isWarning) {
         assert(discardIndex != -1);
@@ -515,15 +523,15 @@ bool SmartBot::maybePlayLowestPlayableCard(Server &server)
      * out of my hand before someone "helpfully" wastes a hint on it.
      * Otherwise, prefer lower-valued cards over higher-valued ones.
      */
-    CardKnowledge eyeKnol[4];
-    for (int i=0; i < 4; ++i) {
+    CardKnowledge eyeKnol[5];
+    for (int i=0; i < myHandSize_; ++i) {
         eyeKnol[i] = handKnowledge_[me_][i];
         eyeKnol[i].update(server, *this, /*useMyEyesight=*/true);
     }
 
     int best_index = -1;
     int best_fitness = 0;
-    for (int i=0; i < 4; ++i) {
+    for (int i=0; i < myHandSize_; ++i) {
         if (eyeKnol[i].playable() != YES) continue;
 
         /* How many further plays are enabled by this play?
@@ -552,7 +560,7 @@ bool SmartBot::maybePlayLowestPlayableCard(Server &server)
 
 bool SmartBot::maybeDiscardWorthlessCard(Server &server)
 {
-    for (int i=0; i < 4; ++i) {
+    for (int i=0; i < myHandSize_; ++i) {
         const CardKnowledge &knol = handKnowledge_[me_][i];
         if (knol.worthless() == YES) {
             server.pleaseDiscard(i);
@@ -568,7 +576,7 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
     assert(partner != me_);
     const std::vector<Card> partners_hand = server.handOfPlayer(partner);
 
-    bool is_really_playable[4];
+    bool is_really_playable[5];
     for (int c=0; c < partners_hand.size(); ++c) {
         is_really_playable[c] =
             server.pileOf(partners_hand[c].color).nextValueIs(partners_hand[c].value);
@@ -730,7 +738,7 @@ bool SmartBot::maybePlayMysteryCard(Server &server)
          * an option; so let's do something that forces us to draw a card.
          * At this point, we might as well try to play something random
          * and hope we get lucky. */
-        for (int i=3; i >= 0; --i) {
+        for (int i = handKnowledge_[me_].size() - 1; i >= 0; --i) {
             CardKnowledge eyeKnol = handKnowledge_[me_][i];
             eyeKnol.update(server, *this, /*useMyEyesight=*/true);
             assert(eyeKnol.playable() != YES);  /* or we would have played it already */
@@ -786,7 +794,7 @@ void SmartBot::pleaseMakeMove(Server &server)
          * that my whole hand is composed of valuable cards, and I just have
          * to discard the one of them that will block our progress the least. */
         int best_index = 0;
-        for (int i=0; i < 4; ++i) {
+        for (int i=0; i < myHandSize_; ++i) {
             assert(handKnowledge_[me_][i].valuable() == YES);
             if (handKnowledge_[me_][i].value() > handKnowledge_[me_][best_index].value()) {
                 best_index = i;
