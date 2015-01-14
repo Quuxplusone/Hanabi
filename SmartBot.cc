@@ -594,12 +594,34 @@ bool SmartBot::maybePlayLowestPlayableCard(Server &server)
 
 bool SmartBot::maybeDiscardWorthlessCard(Server &server)
 {
+    /* Try to find a card that nobody else knows I know is worthless
+     * (because they don't see what I see). Let's try to get that card
+     * out of my hand before someone "helpfully" wastes a hint on it.
+     * Otherwise, prefer lower-valued cards over higher-valued ones.
+     */
+    CardKnowledge eyeKnol[5];
     for (int i=0; i < myHandSize_; ++i) {
-        const CardKnowledge &knol = handKnowledge_[me_][i];
-        if (knol.worthless() == YES) {
-            server.pleaseDiscard(i);
-            return true;
+        eyeKnol[i] = handKnowledge_[me_][i];
+        eyeKnol[i].update(server, *this, /*useMyEyesight=*/true);
+    }
+
+    int best_index = -1;
+    int best_fitness = 0;
+    for (int i=0; i < myHandSize_; ++i) {
+        if (eyeKnol[i].worthless() != YES) continue;
+
+        /* Prefer cards that I've deduced are worthless. */
+        int fitness = (handKnowledge_[me_][i].worthless() == YES) ? 1 : 2;
+        if (fitness > best_fitness) {
+            best_index = i;
+            best_fitness = fitness;
         }
+    }
+
+    /* If I found a card to discard, discard it. */
+    if (best_index != -1) {
+        server.pleaseDiscard(best_index);
+        return true;
     }
 
     return false;
