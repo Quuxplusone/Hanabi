@@ -9,6 +9,7 @@ using namespace Hanabi;
 static int numPlayers;
 static std::vector<std::vector<Card> > hands;
 static std::vector<Card> discards;
+static int finalCountdown;
 
 /* Apple's llvm-gcc 4.2.1 does not support this #pragma,
  * and GCC in general does not support it with non-POD
@@ -81,6 +82,7 @@ NewCheatBot::NewCheatBot(int index, int n, int /*handSize*/)
     numPlayers = n;
     hands.resize(n);
     discards.clear();
+    finalCountdown = 0;
 }
 
 void NewCheatBot::pleaseObserveBeforeMove(const Server &server)
@@ -88,6 +90,10 @@ void NewCheatBot::pleaseObserveBeforeMove(const Server &server)
     if (me_ == 0) {
         for (int p=1; p < hands.size(); ++p) {
             hands[p] = server.handOfPlayer(p);
+        }
+        if (server.cardsRemainingInDeck() == 0) {
+            finalCountdown = (finalCountdown == 0) ? numPlayers : (finalCountdown - 1);
+            assert(finalCountdown != 0);
         }
     } else if (me_ == 1) {
         hands[0] = server.handOfPlayer(0);
@@ -147,12 +153,14 @@ struct State {
     int mulligans_;
     int deck_;
     int score_;  /* the sum of piles_ */
+    int finalCountdown_;  /* turns remaining in the game */
     static Card lastCard_;  /* if there's just one card left in the draw pile (i.e. deck = 1) */
 
     State(const Server &server);
     void apply(Move move);
     int valuation() const;
     bool gameIsDefinitelyOver() const;
+    bool isValuable(const Card &card) const;
 };
 
 Card State::lastCard_(RED,1);  /* out-of-line definition for static member variable */
@@ -184,6 +192,7 @@ State::State(const Server &server)
     if (deck_ == 1) {
         State::lastCard_ = computeLastCardInDeck();
     }
+    finalCountdown_ = finalCountdown;
 }
 
 void State::apply(Move move)
@@ -233,26 +242,35 @@ void State::apply(Move move)
             break;
         }
     }
+
+    if (finalCountdown_ != 0) {
+        assert(deck_ == 0);
+        finalCountdown_ -= 1;
+    } else if (deck_ == 0) {
+        finalCountdown_ = numPlayers;
+    }
     who_ = (who_ + 1) % hands_.size();
 }
 
 int State::valuation() const
 {
-    if (mulligans_ == 0) return 0;
     if (score_ == 25) return INT_MAX;
+    if (mulligans_ == 0 || (deck_ == 0 && finalCountdown_ == 0)) {
+        return 10*score_;
+    }
 
-    int score = score_ * 10;
+    int score = score_ * 11;
     for (Color k = RED; k <= BLUE; ++k) {
         for (int v = piles_[k]; v <= 5; ++v) {
             if (discards_[k][v] == Card(k,v).count()) {
-                const int lost_cards = (v - piles_[k]) + 1;
+                const int lost_cards = (6 - v);
                 score -= (10 * lost_cards);
             } else if (discards_[k][v]) {
                 score -= 1;
             }
         }
     }
-    score *= mulligans_ * 5;
+    score -= 10 * (3 - mulligans_);
     return score;
 }
 
@@ -260,7 +278,13 @@ bool State::gameIsDefinitelyOver() const
 {
     if (mulligans_ == 0) return true;
     if (score_ == 25) return true;
+    if (deck_ == 0 && finalCountdown_ == 0) return true;
     return false;
+}
+
+bool State::isValuable(const Card &card) const
+{
+    return piles_[card.color] <= card.value && (discards_[card.color][card.value] == card.count() - 1);
 }
 
 void getAllPossibleMoves(const State &state, smallvector<Move,11> &moves)
@@ -280,7 +304,8 @@ void getAllPossibleMoves(const State &state, smallvector<Move,11> &moves)
             m.kind = PLAY;
             moves.push_back(m);
         }
-        if (state.hintStones_ < Hanabi::NUMHINTS && (hand[ci] == NULL || hand[ci]->value != 5)) {
+        if (state.hintStones_ < Hanabi::NUMHINTS &&
+            (state.hintStones_ <= 2 || hand[ci] == NULL || state.isValuable(*hand[ci]))) {
             m.kind = DISCARD;
             moves.push_back(m);
         }
