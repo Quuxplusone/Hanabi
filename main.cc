@@ -28,7 +28,7 @@
 struct Statistics {
     int games;
     int totalScore;
-    int perfectGames;
+    int scoreDistribution[26];
     int mulligansUsed[4];
 };
 
@@ -49,7 +49,7 @@ static void run_iterations(int numberOfPlayers, int iterations, Statistics &glob
         assert(score == server.currentScore());
         assert(0 <= server.mulligansUsed() && server.mulligansUsed() <= 3);
         local_stats.totalScore += score;
-        local_stats.perfectGames += (score == 25);
+        local_stats.scoreDistribution[score] += 1;
         local_stats.mulligansUsed[server.mulligansUsed()] += 1;
     }
 
@@ -57,29 +57,42 @@ static void run_iterations(int numberOfPlayers, int iterations, Statistics &glob
     {
         global_stats.games += iterations;
         global_stats.totalScore += local_stats.totalScore;
-        global_stats.perfectGames += local_stats.perfectGames;
+        for (int s=0; s <= 25; ++s) {
+            global_stats.scoreDistribution[s] += local_stats.scoreDistribution[s];
+        }
         for (int i=0; i < 4; ++i) {
             global_stats.mulligansUsed[i] += local_stats.mulligansUsed[i];
         }
     }
 }
 
-static void dump_stats(Statistics stats)
+static void dump_stats(Statistics stats, bool produceHistogram)
 {
     #pragma omp critical (update_and_dump_stats)
     {
-        double dgames = stats.games;
+        const double dgames = stats.games;
+        const int perfectGames = stats.scoreDistribution[25];
 
         std::cout << "Over " << stats.games << " games, " stringify(BOTNAME) " scored an average of "
                   << (stats.totalScore / dgames) << " points per game.\n";
-        if (stats.perfectGames != 0) {
-            std::cout << "  " << 100*(stats.perfectGames / dgames) << " percent were perfect games.\n";
+        if (perfectGames != 0) {
+            const double winRate = 100*(perfectGames / dgames);
+            std::cout << "  " << winRate << " percent were perfect games.\n";
         }
         if (stats.mulligansUsed[0] != stats.games) {
             std::cout << "  Mulligans used: 0 (" << 100*(stats.mulligansUsed[0] / dgames)
                       << "%); 1 (" << 100*(stats.mulligansUsed[1] / dgames)
                       << "%); 2 (" << 100*(stats.mulligansUsed[2] / dgames)
                       << "%); 3 (" << 100*(stats.mulligansUsed[3] / dgames) << "%).\n";
+        }
+        if (produceHistogram) {
+            std::cout << "Histogram:\n";
+            for (int s = 0; s <= 25; ++s) {
+                if (stats.scoreDistribution[s] == 0) continue;
+                const double pct = 100*(stats.scoreDistribution[s] / dgames);
+                std::cout << "  " << (s < 10 ? " " : "") << s << ": " << stats.scoreDistribution[s]
+                          << " (" << pct << "%)\n";
+            }
         }
     }
 }
@@ -138,12 +151,15 @@ int main(int argc, char **argv)
     int seed = -1;
     bool quiet = false;
     bool stackTheDeck = false;
+    bool produceHistogram = false;
 
     for (int i=1; i < argc; ++i) {
         if (argv[i] == std::string("--quiet")) {
             quiet = true;
         } else if (argv[i] == std::string("--deck")) {
             stackTheDeck = true;
+        } else if (argv[i] == std::string("--histogram")) {
+            produceHistogram = true;
         } else if (argv[i] == std::string("--players")) {
             if (i+1 >= argc) usage("Option --players requires an argument.");
             numberOfPlayers = atoi(argv[i+1]);
@@ -208,12 +224,12 @@ int main(int argc, char **argv)
     for (int i=0; i < numberOfGames / every; ++i) {
         run_iterations(numberOfPlayers, every, stats);
         assert(stats.games % every == 0);
-        dump_stats(stats);
+        dump_stats(stats, produceHistogram);
     }
 
     if ((numberOfGames % every) != 0) {
         run_iterations(numberOfPlayers, (numberOfGames % every), stats);
-        dump_stats(stats);
+        dump_stats(stats, produceHistogram);
     }
 
     return 0;

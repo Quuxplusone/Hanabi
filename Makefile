@@ -1,6 +1,6 @@
 
 ifeq ($(FAST),1)
-  CXXFLAGS += -O3 -DNDEBUG
+  CXXFLAGS += -O3 -DNDEBUG -std=c++11
 endif
 
 ifeq ($(OPENMP),1)
@@ -8,7 +8,7 @@ ifeq ($(OPENMP),1)
   LDFLAGS += -fopenmp
 endif
 
-all: run_BlindBot run_SimpleBot run_ValueBot run_HolmesBot run_SmartBot run_CheatBot
+all: run_BlindBot run_SimpleBot run_ValueBot run_HolmesBot run_SmartBot run_CheatBot run_NewCheatBot
 
 .PHONY clean:
 	rm -f *.o
