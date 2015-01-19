@@ -275,6 +275,20 @@ bool SmartBot::isWorthless(const Server &server, Card card) const
 }
 
 
+/* Could "knol" be playable, if it were known to be of value "value"? */
+bool SmartBot::couldBePlayableWithValue(const Server &server, const CardKnowledge &knol, int value) const
+{
+    if (value < 1 || 5 < value) return false;
+    if (knol.playable() != MAYBE) return (knol.playable() == YES);
+    for (Color k = RED; k <= BLUE; ++k) {
+        Card card(k, value);
+        if (knol.cannotBe(card)) continue;
+        if (this->isPlayable(server, card))
+            return true;
+    }
+    return false;
+}
+
 /* Could "knol" be valuable, if it were known to be of value "value"? */
 bool SmartBot::couldBeValuableWithValue(const Server &server, const CardKnowledge &knol, int value) const
 {
@@ -653,15 +667,17 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
         for (int c=0; c < partners_hand.size(); ++c) {
             const CardKnowledge &knol = handKnowledge_[partner][c];
             if (partners_hand[c].color != color) continue;
-            if (is_really_playable[c]) {
-                playability_content += (knol.playable() != YES);
-                color_content += (knol.color() == -1);
-            } else if (knol.worthless() != YES) {
-                if (!knol.cannotBe(Card(color, playableValue))) {
-                    misinformative = true;
-                    break;
+            if (knol.playable() == MAYBE) {
+                if (is_really_playable[c]) {
+                    playability_content += 1;
+                } else {
+                    if (!knol.cannotBe(Card(color, playableValue))) {
+                        misinformative = true;
+                        break;
+                    }
                 }
             }
+            color_content += (knol.color() == -1);
         }
         if (misinformative) continue;
         const int fitness = (playability_content == 0) ? 0 : (playability_content + color_content);
@@ -691,22 +707,17 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
         for (int c=0; c < partners_hand.size(); ++c) {
             const CardKnowledge &knol = handKnowledge_[partner][c];
             if (partners_hand[c].value != value) continue;
-            if (is_really_playable[c]) {
-                playability_content += (knol.playable() != YES);
-                value_content += (knol.value() == -1);
-            } else if (knol.worthless() != YES) {
-                /* We're proposing to give a value hint that includes this unplayable card.
-                 * If this card could legitimately be of a playable color, then our proposed
-                 * hint is misinformative. */
-                for (Color playableColor = RED; playableColor <= BLUE; ++playableColor) {
-                    if (server.pileOf(playableColor).nextValueIs(value) &&
-                        !knol.cannotBe(Card(playableColor, value))) {
+            if (knol.playable() == MAYBE) {
+                if (is_really_playable[c]) {
+                    playability_content += 1;
+                } else {
+                    if (couldBePlayableWithValue(server, knol, value)) {
                         misinformative = true;
                         break;
                     }
                 }
-                if (misinformative) break;
             }
+            value_content += (knol.value() == -1);
         }
         if (misinformative) continue;
         const int fitness = (playability_content == 0) ? 0 : (playability_content + value_content);
