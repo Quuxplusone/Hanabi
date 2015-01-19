@@ -353,6 +353,57 @@ bool SmartBot::updateLocatedCount(const Hanabi::Server &server)
     return false;
 }
 
+int SmartBot::nextDiscardIndex(const Hanabi::Server &server, int to) const
+{
+    const int numCards = handKnowledge_[to].size();
+    int best_fitness = 0;
+    int best_index = -1;
+    for (int i=0; i < numCards; ++i) {
+        const CardKnowledge &knol = handKnowledge_[to][i];
+        int fitness = 0;
+        if (knol.playable() == YES) return -1;  /* we should just play this card */
+        if (knol.worthless() == YES) return -1;  /* we should already have discarded this card */
+        if (knol.valuable() == YES) continue;  /* we should never discard this card */
+
+        static const int PLAYABLE = 16, VALUABLE = 4, WORTHLESS = 1;
+        switch (PLAYABLE*knol.playable() + VALUABLE*knol.valuable() + WORTHLESS*knol.worthless())
+        {
+            case    NO*PLAYABLE +    NO*VALUABLE +    NO*WORTHLESS:    fitness = 200; break;
+            case    NO*PLAYABLE +    NO*VALUABLE + MAYBE*WORTHLESS:    fitness = 400; break;
+            case    NO*PLAYABLE + MAYBE*VALUABLE +    NO*WORTHLESS:    fitness = 100; break;
+            case    NO*PLAYABLE + MAYBE*VALUABLE + MAYBE*WORTHLESS:    fitness = 300; break;
+            case MAYBE*PLAYABLE +    NO*VALUABLE +    NO*WORTHLESS:    fitness = 200; break;
+            case MAYBE*PLAYABLE +    NO*VALUABLE + MAYBE*WORTHLESS:    fitness = 400; break;
+            case MAYBE*PLAYABLE + MAYBE*VALUABLE +    NO*WORTHLESS:    fitness = 100; break;
+            case MAYBE*PLAYABLE + MAYBE*VALUABLE + MAYBE*WORTHLESS:    fitness = 300; break;
+        }
+        if (fitness > best_fitness) {
+            best_fitness = fitness;
+            best_index = i;
+        }
+    }
+    return best_index;
+}
+
+void SmartBot::noValuableWarningWasGiven(const Hanabi::Server &server, int from)
+{
+    /* Something just happened that wasn't a warning. If what happened
+     * wasn't a hint to the guy expecting a warning, then he can safely
+     * deduce that his card isn't valuable enough to warn about. */
+
+    /* The rules are different when there are no cards left to draw,
+     * or when valuable-warning hints can't be given. */
+    if (server.cardsRemainingInDeck() == 0) return;
+    if (server.hintStonesRemaining() == 0) return;
+
+    const int playerExpectingWarning = (from + 1) % handKnowledge_.size();
+    const int discardIndex = this->nextDiscardIndex(server, playerExpectingWarning);
+
+    if (discardIndex != -1) {
+        handKnowledge_[playerExpectingWarning][discardIndex].setIsValuable(*this, server, false);
+    }
+}
+
 void SmartBot::pleaseObserveBeforeMove(const Server &server)
 {
     assert(server.whoAmI() == me_);
@@ -393,6 +444,8 @@ void SmartBot::pleaseObserveBeforeMove(const Server &server)
 
 void SmartBot::pleaseObserveBeforeDiscard(const Hanabi::Server &server, int from, int card_index)
 {
+    this->noValuableWarningWasGiven(server, from);
+
     assert(server.whoAmI() == me_);
     Card card = server.activeCard();
     this->seePublicCard(card);
@@ -402,6 +455,8 @@ void SmartBot::pleaseObserveBeforeDiscard(const Hanabi::Server &server, int from
 void SmartBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, int card_index)
 {
     assert(server.whoAmI() == me_);
+
+    this->noValuableWarningWasGiven(server, from);
 
     Card card = server.activeCard();
 
@@ -419,9 +474,14 @@ void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
 {
     assert(server.whoAmI() == me_);
 
-    /* Someone has given me a color hint. Using SmartBot's strategy,
+    /* Alice has given Bob a color hint. Using SmartBot's strategy,
      * this means that all the named cards are playable; except for
      * any which are now clearly constrained to be non-playable. */
+
+    const int playerExpectingWarning = (from + 1) % handKnowledge_.size();
+    if (to != playerExpectingWarning) {
+        this->noValuableWarningWasGiven(server, from);
+    }
 
     const int playableValue = server.pileOf(color).size() + 1;
 
@@ -439,38 +499,6 @@ void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
     }
 }
 
-int SmartBot::nextDiscardIndex(const Hanabi::Server &server, int to) const
-{
-    const int numCards = handKnowledge_[to].size();
-    int best_fitness = 0;
-    int best_index = -1;
-    for (int i=0; i < numCards; ++i) {
-        const CardKnowledge &knol = handKnowledge_[to][i];
-        int fitness = 0;
-        if (knol.playable() == YES) return -1;  /* we should just play this card */
-        if (knol.worthless() == YES) return -1;  /* we should already have discarded this card */
-        if (knol.valuable() == YES) continue;  /* we should never discard this card */
-
-        static const int PLAYABLE = 16, VALUABLE = 4, WORTHLESS = 1;
-        switch (PLAYABLE*knol.playable() + VALUABLE*knol.valuable() + WORTHLESS*knol.worthless())
-        {
-            case    NO*PLAYABLE +    NO*VALUABLE +    NO*WORTHLESS:    fitness = 200; break;
-            case    NO*PLAYABLE +    NO*VALUABLE + MAYBE*WORTHLESS:    fitness = 400; break;
-            case    NO*PLAYABLE + MAYBE*VALUABLE +    NO*WORTHLESS:    fitness = 100; break;
-            case    NO*PLAYABLE + MAYBE*VALUABLE + MAYBE*WORTHLESS:    fitness = 300; break;
-            case MAYBE*PLAYABLE +    NO*VALUABLE +    NO*WORTHLESS:    fitness = 200; break;
-            case MAYBE*PLAYABLE +    NO*VALUABLE + MAYBE*WORTHLESS:    fitness = 400; break;
-            case MAYBE*PLAYABLE + MAYBE*VALUABLE +    NO*WORTHLESS:    fitness = 100; break;
-            case MAYBE*PLAYABLE + MAYBE*VALUABLE + MAYBE*WORTHLESS:    fitness = 300; break;
-        }
-        if (fitness > best_fitness) {
-            best_fitness = fitness;
-            best_index = i;
-        }
-    }
-    return best_index;
-}
-
 void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, int to, Value value, const std::vector<int> &card_indices)
 {
     assert(server.whoAmI() == me_);
@@ -480,20 +508,26 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
      * then this must be a warning that that card is valuable.
      * Otherwise, all the named cards are playable. */
 
-    const int discardIndex = this->nextDiscardIndex(server, to);
+    const int playerExpectingWarning = (from + 1) % handKnowledge_.size();
+    const int discardIndex = this->nextDiscardIndex(server, playerExpectingWarning);
+
     const bool isHintStoneReclaim =
         (!server.discardingIsAllowed()) &&
         (from == (to+1) % server.numPlayers()) &&
         vector_contains(card_indices, 0);
     const bool isWarning =
         !isHintStoneReclaim &&
-        (to == (from + 1) % handKnowledge_.size()) &&
+        (to == playerExpectingWarning) &&
         vector_contains(card_indices, discardIndex) &&
         couldBeValuableWithValue(server, handKnowledge_[to][discardIndex], value);
 
     if (isWarning) {
         assert(discardIndex != -1);
         handKnowledge_[to][discardIndex].setIsValuable(*this, server, true);
+    }
+
+    if (to != playerExpectingWarning) {
+        this->noValuableWarningWasGiven(server, from);
     }
 
     const int numCards = server.sizeOfHandOfPlayer(to);

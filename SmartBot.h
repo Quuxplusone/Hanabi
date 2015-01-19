@@ -86,6 +86,8 @@ class SmartBot : public Hanabi::Bot {
      * returns the index of his oldest not-known-valuable card. */
     int nextDiscardIndex(const Hanabi::Server &server, int player) const;
 
+    void noValuableWarningWasGiven(const Hanabi::Server &server, int from);
+
     Hint bestHintForPlayer(const Hanabi::Server &server, int to) const;
 
     bool maybePlayLowestPlayableCard(Hanabi::Server &server);
