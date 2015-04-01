@@ -489,8 +489,8 @@ void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
     assert(server.whoAmI() == me_);
 
     /* Alice has given Bob a color hint. Using SmartBot's strategy,
-     * this means that all the named cards are playable; except for
-     * any which are now clearly constrained to be non-playable. */
+     * this means that the newest (possible) of the named cards is
+     * currently playable. */
 
     const int playerExpectingWarning = (from + 1) % handKnowledge_.size();
     if (to != playerExpectingWarning) {
@@ -498,13 +498,18 @@ void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
     }
 
     const int playableValue = server.pileOf(color).size() + 1;
+    const int numCards = server.sizeOfHandOfPlayer(to);
 
-    for (int i=0; i < server.sizeOfHandOfPlayer(to); ++i) {
+    bool seenPlayable = false;
+    for (int i=numCards-1; i >= 0; --i) {
         CardKnowledge &knol = handKnowledge_[to][i];
         if (vector_contains(card_indices, i)) {
+            const bool wasMaybePlayable = (knol.playable() == MAYBE);
             knol.setMustBe(color);
             knol.update(server, *this, false);
-            if (knol.playable() == MAYBE) {
+            const bool isntUnplayable = (knol.playable() != NO);
+            if (wasMaybePlayable && isntUnplayable && !seenPlayable) {
+                seenPlayable = true;
                 knol.setIsPlayable(server, true);
             }
         } else {
@@ -545,12 +550,17 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
     }
 
     const int numCards = server.sizeOfHandOfPlayer(to);
-    for (int i=0; i < numCards; ++i) {
+
+    bool seenPlayable = false;
+    for (int i=numCards-1; i >= 0; --i) {
         CardKnowledge &knol = handKnowledge_[to][i];
         if (vector_contains(card_indices, i)) {
+            const bool wasMaybePlayable = (knol.playable() == MAYBE);
             knol.setMustBe(value);
             knol.update(server, *this, false);
-            if (!isWarning && !isHintStoneReclaim && knol.playable() == MAYBE) {
+            const bool isntUnplayable = (knol.playable() != NO);
+            if (!isWarning && !isHintStoneReclaim && wasMaybePlayable && isntUnplayable && !seenPlayable) {
+                seenPlayable = true;
                 knol.setIsPlayable(server, true);
             }
         } else {
@@ -664,14 +674,16 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
         int playability_content = 0;
         int color_content = 0;
         bool misinformative = false;
-        for (int c=0; c < partners_hand.size(); ++c) {
+        bool seenPlayable = false;
+        for (int c=partners_hand.size()-1; c >= 0; --c) {
             const CardKnowledge &knol = handKnowledge_[partner][c];
             if (partners_hand[c].color != color) continue;
             if (knol.playable() == MAYBE) {
                 if (is_really_playable[c]) {
-                    playability_content += 1;
+                    seenPlayable = true;
+                    playability_content = 1;
                 } else {
-                    if (!knol.cannotBe(Card(color, playableValue))) {
+                    if (!seenPlayable && !knol.cannotBe(Card(color, playableValue))) {
                         misinformative = true;
                         break;
                     }
@@ -704,14 +716,16 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
         int playability_content = 0;
         int value_content = 0;
         bool misinformative = false;
-        for (int c=0; c < partners_hand.size(); ++c) {
+        bool seenPlayable = false;
+        for (int c=partners_hand.size()-1; c >= 0; --c) {
             const CardKnowledge &knol = handKnowledge_[partner][c];
             if (partners_hand[c].value != value) continue;
             if (knol.playable() == MAYBE) {
                 if (is_really_playable[c]) {
-                    playability_content += 1;
+                    seenPlayable = true;
+                    playability_content = 1;
                 } else {
-                    if (couldBePlayableWithValue(server, knol, value)) {
+                    if (!seenPlayable && couldBePlayableWithValue(server, knol, value)) {
                         misinformative = true;
                         break;
                     }
