@@ -293,7 +293,7 @@ bool SmartBot::couldBePlayableWithValue(const Server &server, const CardKnowledg
 bool SmartBot::couldBeValuableWithValue(const Server &server, const CardKnowledge &knol, int value) const
 {
     if (value < 1 || 5 < value) return false;
-    if (knol.valuable() != MAYBE) return (knol.valuable() == YES);
+    if (knol.valuable() != MAYBE) return false;
     for (Color k = RED; k <= BLUE; ++k) {
         Card card(k, value);
         if (knol.cannotBe(card)) continue;
