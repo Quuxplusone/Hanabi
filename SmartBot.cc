@@ -279,7 +279,7 @@ bool SmartBot::isWorthless(const Server &server, Card card) const
 bool SmartBot::couldBePlayableWithValue(const Server &server, const CardKnowledge &knol, int value) const
 {
     if (value < 1 || 5 < value) return false;
-    if (knol.playable() != MAYBE) return (knol.playable() == YES);
+    if (knol.playable() != MAYBE) return false;
     for (Color k = RED; k <= BLUE; ++k) {
         Card card(k, value);
         if (knol.cannotBe(card)) continue;
