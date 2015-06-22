@@ -921,7 +921,7 @@ Hint AwwBot::bestHintForPlayer(const Server &server, int partner) const
 		    if (c==oc) continue;
 		    CardKnowledge eknol;
 		    eknol = handKnowledge_[partner][oc];
-		    if (eknol.color() == colorClue) continue;
+		    if (eknol.color() != -1) continue;
 		    bool alreadyPlayable = (eknol.playable() == YES);
 		    bool alreadyValuable = (eknol.valuable() == YES);
 		    bool alreadyWorthless = (eknol.worthless() == YES);
@@ -938,6 +938,7 @@ Hint AwwBot::bestHintForPlayer(const Server &server, int partner) const
 			// this is not a duplicate card
 			if (partners_hand[oc].color == colorClue) {
 			    // if we clue colorClue, we'd also be cluing another card of that color
+			    if (!alreadyPlayable && (partners_hand[oc].color == colorClue)) colorFitness += 2;
 			    if (!alreadyValuable && !alreadyPlayable &&
 				(isValuable(server, partners_hand[oc]))) {
 				// side effect of clue would be to save a valuable card
@@ -979,7 +980,7 @@ Hint AwwBot::bestHintForPlayer(const Server &server, int partner) const
 		    if (c==oc) continue;
 		    CardKnowledge eknol;
 		    eknol = handKnowledge_[partner][oc];
-		    if (eknol.value() == valueClue) continue;
+		    if (eknol.value() != -1) continue;
 		    bool alreadyPlayable = (eknol.playable() == YES);
 		    bool alreadyValuable = (eknol.valuable() == YES);
 		    bool alreadyWorthless = (eknol.worthless() == YES);
@@ -998,6 +999,7 @@ Hint AwwBot::bestHintForPlayer(const Server &server, int partner) const
 			// this is not a duplicate card
 			if (partners_hand[oc].value == valueClue) {
 			    // if we clue valueClue, we'd also be cluing another card of that value
+			    if (!alreadyPlayable && (partners_hand[oc].value == valueClue)) valueFitness += 2;
 			    if (!alreadyValuable && !alreadyPlayable &&
 				(isValuable(server, partners_hand[oc]))) {
 				// side effect of clue would be to save a valuable card
@@ -1031,140 +1033,10 @@ Hint AwwBot::bestHintForPlayer(const Server &server, int partner) const
 	    }
 
 	} else {
-	    continue;
-	    // TODONEXT
 	    // theoretically, we can clue something not playable if 
 	    // A) it is 100% clear the clued card can't be played right away AND
 	    // B) it will give us some other playable (or something really valuable)
 	    
-	    // This actually makes things worse
-	    // 
-	    //if (true) continue;
-	    //Make sure card is known as not playable
-	    if (handKnowledge_[partner][c].playable() != NO) continue;
-	    
-	    bool foundNewPlayable = false;
-
-	    trivalue cluedElsewhere = isCluedElsewhere(server, partner, c);
-	    if (colorClue != RED) {
-		if (cluedElsewhere == YES)  colorFitness -= 2;
-		// See what else this color clue does
-		for (int oc=0; oc < partnersHandSize; ++oc) {
-		    if (c==oc) continue;
-		    CardKnowledge eknol;
-		    eknol = handKnowledge_[partner][oc];
-		    bool alreadyPlayable = (eknol.playable() == YES);
-		    bool alreadyValuable = (eknol.valuable() == YES);
-		    bool alreadyWorthless = (eknol.worthless() == YES);
-		    bool alreadyClued = eknol.clued();
-		    if (partners_hand[oc].color == colorClue) {
-			eknol.setMustBe(colorClue);
-			//eknol.update(server, *this, false);
-		    } else {
-			eknol.setCannotBe(colorClue);
-			//eknol.infer(server, *this);
-		    }
-		    eknol.update(server, *this, false);
-		    if (partners_hand[oc] != partners_hand[c]) {
-			// this is not a duplicate card
-			if (partners_hand[oc].color == colorClue) {
-			    // if we clue colorClue, we'd also be cluing another card of that color
-			    if (!alreadyPlayable &&
-				(eknol.playable() == YES)) {
-				// card would be playable with this clue
-				colorFitness += 26 - partners_hand[c].value;
-				foundNewPlayable = true;
-			    } else if (!alreadyValuable && !alreadyPlayable &&
-				(isValuable(server, partners_hand[oc]))) {
-				// side effect of clue would be to save a valuable card
-				colorFitness += 15;
-			    } else if (!alreadyValuable && !alreadyPlayable &&
-				(eknol.valuable() != NO) ) {
-				colorFitness += 1;
-			    } else if (!alreadyWorthless &&
-				(eknol.worthless() == YES)) {
-				colorFitness += 1;
-			    } else if (!alreadyWorthless && !alreadyPlayable &&
-				(eknol.mustBe(partners_hand[oc].value))) {
-				// card would be fully clued with this clue
-				colorFitness += 5;
-			    }
-			}
-
-		    } else {
-			// we have the same card more than once
-			if (!alreadyClued) {
-			    if (partners_hand[oc].color == colorClue) {
-				// card not already clued and is a duplicate that would be clued
-				// that is not helpful
-				colorFitness -= 2;
-			    }
-			}
-		    }
-		}
-	    }
-	    if (true) {
-		if (cluedElsewhere == YES) {
-		    valueFitness -= 2;
-		}
-		// See what else this value clue does
-		for (int oc=0; oc < partnersHandSize; ++oc) {
-		    if (c==oc) continue;
-		    CardKnowledge eknol;
-		    eknol = handKnowledge_[partner][oc];
-		    bool alreadyPlayable = (eknol.playable() == YES);
-		    bool alreadyValuable = (eknol.valuable() == YES);
-		    bool alreadyWorthless = (eknol.worthless() == YES);
-		    bool alreadyClued = eknol.clued();
-		    //int cantsSet = eknol.setMustBe(valueClue);
-		    //eknol.infer(server, *this);
-		    if (partners_hand[oc].value == valueClue) {
-			eknol.setMustBe(valueClue);
-			//eknol.update(server, *this, false);
-		    } else {
-			eknol.setCannotBe(valueClue);
-			//eknol.infer(server, *this);
-		    }
-		    eknol.update(server, *this, false);
-		    if (partners_hand[oc] != partners_hand[c]) {
-			// this is not a duplicate card
-			if (partners_hand[oc].value == valueClue) {
-			    // if we clue valueClue, we'd also be cluing another card of that value
-			    if (!alreadyPlayable &&
-				(eknol.playable() == YES)) {
-				// card would be playable with this clue
-		                valueFitness += 26 - partners_hand[c].value;
-				foundNewPlayable = true;
-			    } else if (!alreadyValuable && !alreadyPlayable &&
-				(isValuable(server, partners_hand[oc]))) {
-				// side effect of clue would be to save a valuable card
-				if (valueClue != 5) valueFitness += 15;
-			    } else if (!alreadyValuable && !alreadyPlayable &&
-				(eknol.valuable() != NO) ) {
-				valueFitness += 1;
-			    } else if (!alreadyWorthless &&
-				(eknol.worthless() == YES)) {
-				valueFitness += 1;
-			    } else if (!alreadyWorthless && !alreadyPlayable &&
-				(eknol.mustBe(partners_hand[oc].color))) {
-				// card would be fully clued with this clue
-				valueFitness += 5;
-			    }
-			}
-
-		    } else {
-			// we have the same card more than once
-			if (!alreadyClued && 
-			    (partners_hand[oc].value == valueClue)) {
-			    // card not already clued and is a duplicate that would be clued
-			    // that is not helpful
-			    valueFitness -= 2;
-			}
-			    
-		    }
-		}
-	    }
-	    if (!foundNewPlayable) continue;
 	}
 	if (colorFitness > best_so_far.fitness) {
 	    best_so_far.fitness = colorFitness;
@@ -1393,7 +1265,7 @@ bool AwwBot::maybeGiveHelpfulHint(Server &server)
 
     const int numPlayers = handKnowledge_.size();
     Hint bestHint;
-    for (int i = 1; i < numPlayers; ++i) {
+    for (int i = 1; i < ((numPlayers > 3) ? numPlayers - 1 : numPlayers); ++i) {
         const int partner = (me_ + i) % numPlayers;
 	if (clueWaiting_[partner] || handLocked_[partner]) continue;
 	// TODO: if only 1 hint left, maybe deemphasize hinting player with discardable
@@ -1576,6 +1448,14 @@ void AwwBot::pleaseMakeMove(Server &server)
 }
 
 // $Log: AwwBot.cc,v $
+// Revision 1.11  2015/06/22 20:04:55  jay
+// some clean up, no logic changes
+//
+// Revision 1.10  2015/06/22 20:00:13  jay
+// 22.982 23.5665 22.8745 21.495
+// fixed some besthint stuff
+// also removed cluing player 4/5 in 4/5 player games
+//
 // Revision 1.9  2015/06/22 16:38:23  jay
 // 22.973 23.489 22.668 21.153
 // First code with finesse (can clue LH2 to finesse LH1)
