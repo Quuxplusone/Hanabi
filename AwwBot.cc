@@ -1266,6 +1266,7 @@ bool AwwBot::maybeGiveHelpfulHint(Server &server)
     const int numPlayers = handKnowledge_.size();
     Hint bestHint;
     for (int i = 1; i < ((numPlayers > 3) ? numPlayers - 1 : numPlayers); ++i) {
+    //for (int i = 1; i < numPlayers; ++i) {
         const int partner = (me_ + i) % numPlayers;
 	if (clueWaiting_[partner] || handLocked_[partner]) continue;
 	// TODO: if only 1 hint left, maybe deemphasize hinting player with discardable
@@ -1406,6 +1407,13 @@ void AwwBot::pleaseMakeMove(Server &server)
     if (server.cardsRemainingInDeck() > server.numPlayers()) {
 	if (maybeFinesseNextPlayer(server)) return;
 	if (maybeGiveValuableWarning(server, 1)) return;
+	if (server.hintStonesRemaining() == 1) {
+	    // there is only 1 hint left and LH1 does not need a save clue
+	    // give save clue to LH2 if needed
+	    if (server.numPlayers() > 2) {
+		if (maybeGiveValuableWarning(server, 2)) return;
+	    }
+	}
 	if (maybePlayLowestPlayableCard(server)) return;
 	if (maybeGiveHelpfulHint(server)) return;
 	if (maybePlayMysteryCard(server)) return;
