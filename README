@@ -15,6 +15,7 @@ There are seven bots provided:
     ValueBot (also warns about valuable cards)
     HolmesBot (also performs inferences, and uses mulligans)
     SmartBot (prefers to play cards its partners don't know it knows)
+    AwwBot (from Jay Bread; relies on "empty" hints)
     CheatBot (secretly radios its partners; that is, cheats)
     NewCheatBot (also cheats)
 
@@ -28,6 +29,7 @@ Simple   16.91            18.47            19.33
 Value    19.79            19.42            19.40
 Holmes   20.75  (5.28%)   20.86  (0.38%)   20.47  (0.04%)
 Smart    22.72 (21.51%)   22.69  (8.91%)   21.87  (1.52%)
+Aww      22.99 (23.33%)   23.71 (34.42%)   22.95 (12.84%)
 Cheat    24.90 (93.93%)   24.98 (98.29%)   24.97 (97.93%)
 NewCheat 24.72 (85.42%)   24.91 (94.32%)   24.88 (91.19%)
 
