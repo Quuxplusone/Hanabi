@@ -434,17 +434,18 @@ void Server::pleaseGiveColorHint(int to, Color color)
             card_indices.push_back(i);
         }
     }
-    if (card_indices.empty()) throw std::runtime_error("hint must include at least one card");
 
     if (log_) {
         const bool singular = (card_indices.size() == 1);
         (*log_) << "Player " << activePlayer_
                 << " told player " << to
-                << " that his ";
-        if (card_indices.size() == hands_[to].size()) {
-            (*log_) << "whole hand was ";
+                << " that ";
+        if (card_indices.empty()) {
+            (*log_) << "none of his cards were ";
+        } else if (card_indices.size() == hands_[to].size()) {
+            (*log_) << "his whole hand was ";
         } else {
-            (*log_) << nth(card_indices, hands_[to].size())
+            (*log_) << "his " << nth(card_indices, hands_[to].size())
                 << (singular ? " card was " : " cards were ");
         }
         (*log_) << colorname(color) << ".\n";
@@ -480,17 +481,18 @@ void Server::pleaseGiveValueHint(int to, Value value)
             card_indices.push_back(i);
         }
     }
-    if (card_indices.empty()) throw std::runtime_error("hint must include at least one card");
 
     if (log_) {
         const bool singular = (card_indices.size() == 1);
         (*log_) << "Player " << activePlayer_
                 << " told player " << to
-                << " that his ";
-        if (card_indices.size() == hands_[to].size()) {
-            (*log_) << "whole hand was ";
+                << " that ";
+        if (card_indices.empty()) {
+            (*log_) << "none of his cards were ";
+        } else if (card_indices.size() == hands_[to].size()) {
+            (*log_) << "his whole hand was ";
         } else {
-            (*log_) << nth(card_indices, hands_[to].size())
+            (*log_) << "his " << nth(card_indices, hands_[to].size())
                 << (singular ? " card was " : " cards were ");
         }
         (*log_) << value
