@@ -67,9 +67,6 @@ class SmartBot : public Hanabi::Bot {
     /* What cards in players' hands are visible to me in particular?
      * This table is recomputed every turn. */
     int eyesightCount_[Hanabi::NUMCOLORS][5+1];
-    /* What is the lowest-value card currently playable?
-     * This value is recomputed every turn. */
-    int lowestPlayableValue_;
 
     bool isPlayable(const Hanabi::Server &server, Hanabi::Card card) const;
     bool isValuable(const Hanabi::Server &server, Hanabi::Card card) const;

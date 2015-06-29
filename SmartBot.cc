@@ -444,11 +444,6 @@ void SmartBot::pleaseObserveBeforeMove(const Server &server)
 
     this->updateEyesightCount(server);
 
-    lowestPlayableValue_ = 6;
-    for (Color color = RED; color <= BLUE; ++color) {
-        lowestPlayableValue_ = std::min(lowestPlayableValue_, server.pileOf(color).size()+1);
-    }
-
     for (Color k = RED; k <= BLUE; ++k) {
         for (int v = 1; v <= 5; ++v) {
             assert(this->locatedCount_[k][v] <= this->eyesightCount_[k][v]);
@@ -777,12 +772,6 @@ bool SmartBot::maybeGiveValuableWarning(Server &server)
     }
 
     /* Otherwise, we'll have to give a warning. */
-    if (targetCard.value == lowestPlayableValue_) {
-        assert(server.pileOf(targetCard.color).nextValueIs(targetCard.value));
-    } else {
-        assert(targetCard.value > lowestPlayableValue_);
-    }
-
     server.pleaseGiveValueHint(player_to_warn, targetCard.value);
     return true;
 }
