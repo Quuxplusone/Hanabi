@@ -48,9 +48,6 @@ bool CardKnowledge::cannotBe(Hanabi::Value value) const
     return true;
 }
 
-int CardKnowledge::color() const { return this->color_; }
-int CardKnowledge::value() const { return this->value_; }
-
 void CardKnowledge::setMustBe(Hanabi::Color color)
 {
     for (Color k = RED; k <= BLUE; ++k) {
