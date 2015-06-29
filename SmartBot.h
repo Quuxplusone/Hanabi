@@ -88,6 +88,7 @@ class SmartBot : public Hanabi::Bot {
 
     Hint bestHintForPlayer(const Hanabi::Server &server, int to) const;
 
+    bool maybeDiscardFinesse(Hanabi::Server &server);
     bool maybePlayLowestPlayableCard(Hanabi::Server &server);
     bool maybeGiveHelpfulHint(Hanabi::Server &server);
     bool maybeGiveValuableWarning(Hanabi::Server &server);

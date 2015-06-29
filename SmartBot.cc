@@ -19,6 +19,16 @@ static bool vector_contains(const std::vector<T> &vec, T value)
     return false;
 }
 
+template<typename T>
+static int vector_count(const std::vector<T> &vec, T value)
+{
+    int result = 0;
+    for (int i=0; i < vec.size(); ++i) {
+        if (vec[i] == value) result += 1;
+    }
+    return result;
+}
+
 CardKnowledge::CardKnowledge()
 {
     color_ = -1;
@@ -450,10 +460,37 @@ void SmartBot::pleaseObserveBeforeMove(const Server &server)
 
 void SmartBot::pleaseObserveBeforeDiscard(const Hanabi::Server &server, int from, int card_index)
 {
-    this->noValuableWarningWasGiven(server, from);
-
     assert(server.whoAmI() == me_);
     Card card = server.activeCard();
+
+    this->noValuableWarningWasGiven(server, from);
+
+    const CardKnowledge& knol = handKnowledge_[from][card_index];
+    const int k = knol.color();
+    const int v = knol.value();
+    if (k != -1 && v != -1 && v != 5 && knol.playable() == YES) {
+        /* Alice is discarding a playable card whose value she knows.
+         * This indicates a "discard finesse": she can see someone at the table
+         * with that same card as their newest card. Look around the table. If
+         * you can't see who has that card, it must be you. */
+        const int numPlayers = handKnowledge_.size();
+        bool seenIt = false;
+        for (int partner = 0; partner < numPlayers; ++partner) {
+            if (partner == from || partner == me_) continue;
+            Card newestCard = server.handOfPlayer(partner).back();
+            if (newestCard == card) {
+                handKnowledge_[partner].back().setMustBe(card.color);
+                handKnowledge_[partner].back().setMustBe(card.value);
+                seenIt = true;
+                break;
+            }
+        }
+        if (!seenIt) {
+            handKnowledge_[me_].back().setMustBe(card.color);
+            handKnowledge_[me_].back().setMustBe(card.value);
+        }
+    }
+
     this->seePublicCard(card);
     this->invalidateKnol(from, card_index);
 }
@@ -773,6 +810,43 @@ bool SmartBot::maybeGiveValuableWarning(Server &server)
     return true;
 }
 
+bool SmartBot::maybeDiscardFinesse(Server &server)
+{
+    if (!server.discardingIsAllowed()) return false;
+
+    std::vector<Card> myPlayableCards;
+    std::vector<int> myPlayableIndices;
+
+    for (int i = 0; i < handKnowledge_[me_].size(); ++i) {
+        const CardKnowledge& knol = handKnowledge_[me_][i];
+        int k = knol.color();
+        int v = knol.value();
+        if (k != -1 && v != -1 && v != 5 && knol.playable() == YES) {
+            myPlayableCards.push_back(Card(Color(k), v));
+            myPlayableIndices.push_back(i);
+        }
+    }
+
+    if (myPlayableCards.empty()) return false;
+
+    std::vector<Card> othersNewestCards;
+
+    const int numPlayers = handKnowledge_.size();
+    for (int i = 1; i < numPlayers; ++i) {
+        const int partner = (me_ + i) % numPlayers;
+        othersNewestCards.push_back(server.handOfPlayer(partner).back());
+    }
+
+    for (int j = 0; j < myPlayableCards.size(); ++j) {
+        if (vector_count(othersNewestCards, myPlayableCards[j]) == 1) {
+            server.pleaseDiscard(myPlayableIndices[j]);
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool SmartBot::maybeGiveHelpfulHint(Server &server)
 {
     if (server.hintStonesRemaining() == 0) return false;
@@ -840,6 +914,7 @@ void SmartBot::pleaseMakeMove(Server &server)
         if (maybePlayMysteryCard(server)) return;
     }
     if (maybeGiveValuableWarning(server)) return;
+    if (maybeDiscardFinesse(server)) return;
     if (maybePlayLowestPlayableCard(server)) return;
     if (maybeGiveHelpfulHint(server)) return;
     if (maybePlayMysteryCard(server)) return;
