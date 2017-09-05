@@ -108,7 +108,7 @@ void CardKnowledge::update(const Server &server, const HolmesBot &bot)
         if (value != -1) this->setMustBe(Value(value));
     }
 
-  complicated_part:
+    // this is the complicated part
 
     assert(color == this->color_);
     assert(value == this->value_);
@@ -334,7 +334,7 @@ void HolmesBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, 
     this->invalidateKnol(from, card_index);
 }
 
-void HolmesBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, int to, Color color, const std::vector<int> &card_indices)
+void HolmesBot::pleaseObserveColorHint(const Hanabi::Server &server, int /*from*/, int to, Color color, const std::vector<int> &card_indices)
 {
     assert(server.whoAmI() == me_);
 

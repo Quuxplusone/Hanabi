@@ -350,7 +350,7 @@ void SmartBot::updateEyesightCount(const Server &server)
     }
 }
 
-bool SmartBot::updateLocatedCount(const Hanabi::Server &server)
+bool SmartBot::updateLocatedCount()
 {
     int newCount[Hanabi::NUMCOLORS][5+1] = {};
 
@@ -374,7 +374,7 @@ bool SmartBot::updateLocatedCount(const Hanabi::Server &server)
     return false;
 }
 
-int SmartBot::nextDiscardIndex(const Hanabi::Server &server, int to) const
+int SmartBot::nextDiscardIndex(int to) const
 {
     const int numCards = handKnowledge_[to].size();
     int best_fitness = 0;
@@ -418,7 +418,7 @@ void SmartBot::noValuableWarningWasGiven(const Hanabi::Server &server, int from)
     if (server.hintStonesRemaining() == 0) return;
 
     const int playerExpectingWarning = (from + 1) % handKnowledge_.size();
-    const int discardIndex = this->nextDiscardIndex(server, playerExpectingWarning);
+    const int discardIndex = this->nextDiscardIndex(playerExpectingWarning);
 
     if (discardIndex != -1) {
         handKnowledge_[playerExpectingWarning][discardIndex].setIsValuable(*this, server, false);
@@ -438,7 +438,7 @@ void SmartBot::pleaseObserveBeforeMove(const Server &server)
     }
 
     std::memset(this->locatedCount_, '\0', sizeof this->locatedCount_);
-    this->updateLocatedCount(server);
+    this->updateLocatedCount();
     do {
         for (int p=0; p < handKnowledge_.size(); ++p) {
             const int numCards = handKnowledge_[p].size();
@@ -447,7 +447,7 @@ void SmartBot::pleaseObserveBeforeMove(const Server &server)
                 knol.update(server, *this, false);
             }
         }
-    } while (this->updateLocatedCount(server));
+    } while (this->updateLocatedCount());
 
     this->updateEyesightCount(server);
 
@@ -526,7 +526,6 @@ void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
         this->noValuableWarningWasGiven(server, from);
     }
 
-    const int playableValue = server.pileOf(color).size() + 1;
     const int numCards = server.sizeOfHandOfPlayer(to);
 
     bool seenPlayable = false;
@@ -557,7 +556,7 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
      * Otherwise, all the named cards are playable. */
 
     const int playerExpectingWarning = (from + 1) % handKnowledge_.size();
-    const int discardIndex = this->nextDiscardIndex(server, playerExpectingWarning);
+    const int discardIndex = this->nextDiscardIndex(playerExpectingWarning);
 
     const bool isHintStoneReclaim =
         (!server.discardingIsAllowed()) &&
@@ -732,7 +731,7 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
     /* Avoid giving hints that could be misinterpreted as warnings. */
     int valueToAvoid = -1;
     if (partner == (me_ + 1) % handKnowledge_.size()) {
-        const int discardIndex = nextDiscardIndex(server, partner);
+        const int discardIndex = nextDiscardIndex(partner);
         if (discardIndex != -1) {
             const CardKnowledge &knol = handKnowledge_[partner][discardIndex];
             valueToAvoid = partners_hand[discardIndex].value;
@@ -784,7 +783,7 @@ bool SmartBot::maybeGiveValuableWarning(Server &server)
 
     /* Is the player to our left just about to discard a card
      * that is really valuable? */
-    int discardIndex = this->nextDiscardIndex(server, player_to_warn);
+    int discardIndex = this->nextDiscardIndex(player_to_warn);
     if (discardIndex == -1) return false;
     Card targetCard = server.handOfPlayer(player_to_warn)[discardIndex];
     if (!this->isValuable(server, targetCard)) {
@@ -894,7 +893,7 @@ bool SmartBot::maybePlayMysteryCard(Server &server)
 
 bool SmartBot::maybeDiscardOldCard(Server &server)
 {
-    const int best_index = nextDiscardIndex(server, me_);
+    const int best_index = nextDiscardIndex(me_);
     if (best_index != -1) {
         server.pleaseDiscard(best_index);
         return true;

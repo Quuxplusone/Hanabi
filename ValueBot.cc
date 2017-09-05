@@ -188,7 +188,7 @@ void ValueBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, i
     }
 }
 
-void ValueBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, int to, Color color, const std::vector<int> &card_indices)
+void ValueBot::pleaseObserveColorHint(const Hanabi::Server &server, int /*from*/, int to, Color color, const std::vector<int> &card_indices)
 {
     assert(server.whoAmI() == me_);
 

@@ -1,6 +1,9 @@
+CXXFLAGS += -std=c++11
+CXXFLAGS += -W -Wall -pedantic -Wno-sign-compare
+CXXFLAGS += ${EXTRA_CXXFLAGS}
 
 ifeq ($(FAST),1)
-  CXXFLAGS += -O3 -DNDEBUG -std=c++11
+  CXXFLAGS += -O3 -DNDEBUG -Wno-unused-parameter -Wno-unused-variable
 endif
 
 ifeq ($(OPENMP),1)
@@ -8,7 +11,8 @@ ifeq ($(OPENMP),1)
   LDFLAGS += -fopenmp
 endif
 
-all: run_BlindBot run_SimpleBot run_ValueBot run_HolmesBot run_SmartBot run_CheatBot run_NewCheatBot
+all: run_BlindBot run_SimpleBot run_ValueBot run_HolmesBot \
+     run_SmartBot run_CheatBot run_NewCheatBot
 
 .PHONY clean:
 	rm -f *.o

@@ -3,7 +3,8 @@
 
 class HolmesBot;
 
-struct CardKnowledge {
+class CardKnowledge {
+public:
     CardKnowledge();
 
     bool mustBe(Hanabi::Color color) const;

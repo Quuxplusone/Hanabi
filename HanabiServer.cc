@@ -379,7 +379,6 @@ Card Server::pleasePlay(int index)
 
     /* Examine the selected card. */
     Pile &pile = piles_[(int)selectedCard.color];
-    bool success = false;
 
     if (pile.nextValueIs(selectedCard.value)) {
         if (log_) {
@@ -392,7 +391,6 @@ Card Server::pleasePlay(int index)
             /* Successfully playing a 5 regains a hint stone. */
             regainHintStoneIfPossible_();
         }
-        success = true;
     } else {
         /* The card was unplayable! */
         if (log_) {

@@ -6,12 +6,12 @@
 
 using namespace Hanabi;
 
-BlindBot::BlindBot(int index, int numPlayers, int handSize) { }
+BlindBot::BlindBot(int, int, int) { }
 void BlindBot::pleaseObserveBeforeMove(const Server &) { }
-void BlindBot::pleaseObserveBeforeDiscard(const Server &, int from, int card_index) { }
-void BlindBot::pleaseObserveBeforePlay(const Server &, int from, int card_index) { }
-void BlindBot::pleaseObserveColorHint(const Server &, int from, int to, Color color, const std::vector<int> &card_indices) { }
-void BlindBot::pleaseObserveValueHint(const Server &, int from, int to, Value value, const std::vector<int> &card_indices) { }
+void BlindBot::pleaseObserveBeforeDiscard(const Server &, int, int) { }
+void BlindBot::pleaseObserveBeforePlay(const Server &, int, int) { }
+void BlindBot::pleaseObserveColorHint(const Server &, int, int, Color, const std::vector<int> &) { }
+void BlindBot::pleaseObserveValueHint(const Server &, int, int, Value, const std::vector<int> &) { }
 void BlindBot::pleaseObserveAfterMove(const Server &) { }
 
 void BlindBot::pleaseMakeMove(Server &server)

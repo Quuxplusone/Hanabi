@@ -1,5 +1,7 @@
 
 #include <cassert>
+#include <climits>
+#include <cstring>
 #include <iostream>
 #include "Hanabi.h"
 #include "NewCheatBot.h"
@@ -31,7 +33,7 @@ public:
     const T& operator[] (int i) const { return data_[i]; }
     size_t size() const { return size_; }
     size_t capacity() const { return N; }
-    void reserve(size_t cap) { assert(cap <= N); }
+    void reserve(size_t cap) { assert(cap <= N); (void)cap; }
     void resize(size_t len) { assert(len <= N); size_ = len; }
     void push_back(const T& t) { assert(size_ < N); data_[size_++] = t; }
     Iterator begin() { return data_; }
@@ -100,7 +102,7 @@ void NewCheatBot::pleaseObserveBeforeMove(const Server &server)
     }
 }
 
-void NewCheatBot::pleaseObserveBeforeDiscard(const Server &server, int from, int card_index)
+void NewCheatBot::pleaseObserveBeforeDiscard(const Server &server, int, int)
 {
     if (me_ == 0) {
         discards.push_back(server.activeCard());

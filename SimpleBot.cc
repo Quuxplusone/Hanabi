@@ -36,6 +36,7 @@ int CardKnowledge::value() const
         if (this->mustBe(Value(i))) return i;
     }
     assert(false);
+    return -1;
 }
 
 void CardKnowledge::setMustBe(Hanabi::Color color)
@@ -92,7 +93,7 @@ void SimpleBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, 
     this->wipeOutPlayables(server.activeCard());
 }
 
-void SimpleBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, int to, Color color, const std::vector<int> &card_indices)
+void SimpleBot::pleaseObserveColorHint(const Hanabi::Server &server, int /*from*/, int to, Color color, const std::vector<int> &card_indices)
 {
     assert(server.whoAmI() == me_);
 

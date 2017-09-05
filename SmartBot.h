@@ -7,7 +7,8 @@ enum trivalue {
     NO, MAYBE, YES
 };
 
-struct CardKnowledge {
+class CardKnowledge {
+public:
     CardKnowledge();
 
     bool mustBe(Hanabi::Color color) const;
@@ -75,14 +76,14 @@ class SmartBot : public Hanabi::Bot {
     bool couldBeValuableWithValue(const Hanabi::Server &server, const CardKnowledge &knol, int value) const;
 
     void updateEyesightCount(const Hanabi::Server &server);
-    bool updateLocatedCount(const Hanabi::Server &server);
+    bool updateLocatedCount();
     void invalidateKnol(int player_index, int card_index);
     void seePublicCard(const Hanabi::Card &played_card);
 
     /* Returns -1 if the named player is planning to play a card on his
      * turn, or if all his cards are known to be valuable. Otherwise,
      * returns the index of his oldest not-known-valuable card. */
-    int nextDiscardIndex(const Hanabi::Server &server, int player) const;
+    int nextDiscardIndex(int player) const;
 
     void noValuableWarningWasGiven(const Hanabi::Server &server, int from);
 

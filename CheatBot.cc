@@ -37,7 +37,7 @@ static int visibleCopiesOf(Card card)
     return result;
 }
 
-CheatBot::CheatBot(int index, int n, int handSize)
+CheatBot::CheatBot(int index, int n, int /*handSize*/)
 {
     me_ = index;
     numPlayers = n;
@@ -57,7 +57,7 @@ void CheatBot::pleaseObserveBeforeMove(const Server &server)
     }
 }
 
-void CheatBot::pleaseObserveBeforeDiscard(const Server &server, int from, int card_index) { }
+void CheatBot::pleaseObserveBeforeDiscard(const Server &, int, int) { }
 void CheatBot::pleaseObserveBeforePlay(const Server &, int, int) { }
 void CheatBot::pleaseObserveColorHint(const Server &, int, int, Color, const std::vector<int> &) { }
 void CheatBot::pleaseObserveValueHint(const Server &, int, int, Value, const std::vector<int> &) { }
