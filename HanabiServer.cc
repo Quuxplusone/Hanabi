@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cassert>
 #include <ostream>
+#include <random>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -103,7 +104,7 @@ void Pile::increment_()
 Bot::~Bot() { }
 
 /* Hanabi::Card has no default constructor */
-Server::Server(): activeCard_(RED,1), log_(NULL) { }
+Server::Server(): log_(nullptr), activeCard_(RED,1) { }
 
 bool Server::gameOver() const
 {
@@ -132,6 +133,11 @@ int Server::currentScore() const
 void Server::setLog(std::ostream *logStream)
 {
     this->log_ = logStream;
+}
+
+void Server::srand(unsigned int seed)
+{
+    this->rand_.seed(seed);
 }
 
 int Server::runGame(const BotFactory &botFactory, int numPlayers)
@@ -172,7 +178,7 @@ int Server::runGame(const BotFactory &botFactory, int numPlayers, const std::vec
                 for (int k=0; k < n; ++k) deck_.push_back(card);
             }
         }
-        std::random_shuffle(deck_.begin(), deck_.end());
+        std::shuffle(deck_.begin(), deck_.end(), rand_);
     }
     discards_.clear();
 

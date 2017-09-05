@@ -32,11 +32,13 @@ struct Statistics {
     int mulligansUsed[4];
 };
 
-static void run_iterations(int numberOfPlayers, int iterations, Statistics &global_stats)
+static void run_iterations(int seed, int numberOfPlayers, int iterations, Statistics &global_stats)
 {
     Hanabi::Server server;
     BotFactory<BOTNAME> botFactory;
     Statistics local_stats = {};
+
+    server.srand(seed);
 
     for (int i=0; i < iterations; ++i) {
         int score;
@@ -193,7 +195,6 @@ int main(int argc, char **argv)
         seed = std::rand();
     }
     printf("--seed %d\n", seed);
-    std::srand(seed);
 
     if (stackTheDeck) {
         run_one_stacked_deck_game(numberOfPlayers);
@@ -205,6 +206,7 @@ int main(int argc, char **argv)
         Hanabi::Server server;
         BotFactory<BOTNAME> botFactory;
         server.setLog(&std::cerr);
+        server.srand(seed);
         int score = server.runGame(botFactory, numberOfPlayers);
         std::cout << stringify(BOTNAME) " scored " << score << " points in that first game.\n";
     }
@@ -220,15 +222,16 @@ int main(int argc, char **argv)
 #endif /* _OPENMP */
 
     Statistics stats = {};
+    const int loops = numberOfGames / every;
     #pragma omp parallel for
-    for (int i=0; i < numberOfGames / every; ++i) {
-        run_iterations(numberOfPlayers, every, stats);
+    for (int i=0; i < loops; ++i) {
+        run_iterations(seed + i, numberOfPlayers, every, stats);
         assert(stats.games % every == 0);
         dump_stats(stats, produceHistogram);
     }
 
     if ((numberOfGames % every) != 0) {
-        run_iterations(numberOfPlayers, (numberOfGames % every), stats);
+        run_iterations(seed + loops, numberOfPlayers, (numberOfGames % every), stats);
         dump_stats(stats, produceHistogram);
     }
 

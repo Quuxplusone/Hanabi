@@ -4,6 +4,7 @@
 
 #include <string>
 #include <ostream>
+#include <random>
 #include <vector>
 
 namespace Hanabi {
@@ -33,7 +34,8 @@ inline Value operator++ (Value &v, int) { Value ov = v; ++v; return ov; }
 inline Value &operator-- (Value &v) { v = Value((int)v-1); return v; }
 inline Value operator-- (Value &v, int) { Value ov = v; --v; return ov; }
 
-struct Card {
+class Card {
+public:
     Color color;
     Value value;
     Card(Color c, Value v);
@@ -49,12 +51,12 @@ struct Card {
 };
 
 class Pile {
-  private:
+private:
     Color color;
     int size_;  /* might be zero */
     void increment_();
     friend class Server;
-  public:
+public:
     bool empty() const { return size_ == 0; }
     int size() const { return size_; }
     Card topCard() const;  /* throws if the pile is empty */
@@ -62,12 +64,15 @@ class Pile {
     bool contains(int value) const { return (1 <= value && value <= size_); }
 };
 
-struct Server {
-
+class Server {
+public:
     Server();
 
     /* Set up logging, for debuggability and amusement. */
     void setLog(std::ostream *logStream);
+
+    /* Seed the random number generator. */
+    void srand(unsigned int seed);
 
     /* Set up a new game, using numPlayers player-bots as created
      * by repeated calls to botFactory.create(i,numPlayers). Then
@@ -188,6 +193,7 @@ struct Server {
 private:
     /* Administrivia */
     std::ostream *log_;
+    std::mt19937 rand_;
     std::vector<Bot *> players_;
     int observingPlayer_;
     int activePlayer_;
@@ -220,7 +226,8 @@ private:
 
 namespace Hanabi {
 
-struct Bot {
+class Bot {
+public:
     virtual ~Bot();  /* virtual destructor */
     virtual void pleaseObserveBeforeMove(const Server &) = 0;
     virtual void pleaseMakeMove(Server &) = 0;
@@ -231,7 +238,8 @@ struct Bot {
     virtual void pleaseObserveAfterMove(const Server &) = 0;
 };
 
-struct BotFactory {
+class BotFactory {
+public:
     virtual Bot *create(int index, int numPlayers, int handSize) const = 0;
     virtual void destroy(Bot *bot) const = 0;
 };
