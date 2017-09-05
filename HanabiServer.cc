@@ -140,6 +140,19 @@ void Server::srand(unsigned int seed)
     this->rand_.seed(seed);
 }
 
+template<class It, class Gen>
+static void portable_shuffle(It first, It last, Gen& g)
+{
+    const int n = (last - first);
+    for (int i=0; i < n; ++i) {
+        int j = (g() % (i + 1));
+        if (j != i) {
+            using std::swap;
+            swap(first[i], first[j]);
+        }
+    }
+}
+
 int Server::runGame(const BotFactory &botFactory, int numPlayers)
 {
     return this->runGame(botFactory, numPlayers, std::vector<Card>());
@@ -178,7 +191,7 @@ int Server::runGame(const BotFactory &botFactory, int numPlayers, const std::vec
                 for (int k=0; k < n; ++k) deck_.push_back(card);
             }
         }
-        std::shuffle(deck_.begin(), deck_.end(), rand_);
+        portable_shuffle(deck_.begin(), deck_.end(), rand_);
     }
     discards_.clear();
 
