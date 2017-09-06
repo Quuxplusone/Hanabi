@@ -17,12 +17,19 @@ all: run_BlindBot run_SimpleBot run_ValueBot run_HolmesBot \
 .PHONY clean:
 	rm -f *.o
 	rm -f run_*Bot
+	rm -f exp_*Bot
 
 run_%.o: main.cc %.h
 	$(CXX) $(CXXFLAGS) -DBOTNAME=$* main.cc -c -o $@
+
+exp_%.o: main.cc %.h
+	$(CXX) $(CXXFLAGS) -DBOTNAME=$* experiment-harness.cc -c -o $@
 
 %.o: %.cc
 	$(CXX) $(CXXFLAGS) $< -c -o $@
 
 run_%: run_%.o HanabiServer.o %.o
+	$(CXX) $(LDFLAGS) -o $@ $^
+
+exp_%: exp_%.o HanabiServer.o %.o
 	$(CXX) $(LDFLAGS) -o $@ $^
