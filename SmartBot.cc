@@ -270,17 +270,13 @@ bool SmartBot::isWorthless(const Server &server, Card card) const
 {
     const int playableValue = server.pileOf(card.color).size() + 1;
     if (card.value < playableValue) return true;
-    if (false) {
-        /* If all the red 4s are in the discard pile, then the red 5 is worthless.
-         * But doing this check all the time apparently lowers SmartBot's average score! */
-        while (card.value > playableValue) {
-            --card.value;
-            if (playedCount_[card.color][card.value] == card.count()) return true;
-        }
+    /* If all the red 4s are in the discard pile, then the red 5 is worthless. */
+    while (card.value > playableValue) {
+        --card.value;
+        if (playedCount_[card.color][card.value] == card.count()) return true;
     }
     return false;
 }
-
 
 /* Could "knol" be playable, if it were known to be of value "value"? */
 bool SmartBot::couldBePlayableWithValue(const Server &server, const CardKnowledge &knol, int value) const
@@ -649,7 +645,6 @@ bool SmartBot::maybeDiscardWorthlessCard(Server &server)
     /* Try to find a card that nobody else knows I know is worthless
      * (because they don't see what I see). Let's try to get that card
      * out of my hand before someone "helpfully" wastes a hint on it.
-     * Otherwise, prefer lower-valued cards over higher-valued ones.
      */
     CardKnowledge eyeKnol[5];
     for (int i=0; i < myHandSize_; ++i) {
