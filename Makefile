@@ -22,7 +22,7 @@ all: run_BlindBot run_SimpleBot run_ValueBot run_HolmesBot \
 run_%.o: main.cc %.h
 	$(CXX) $(CXXFLAGS) -DBOTNAME=$* main.cc -c -o $@
 
-exp_%.o: main.cc %.h
+exp_%.o: experiment-harness.cc %.h
 	$(CXX) $(CXXFLAGS) -DBOTNAME=$* experiment-harness.cc -c -o $@
 
 %.o: %.cc
