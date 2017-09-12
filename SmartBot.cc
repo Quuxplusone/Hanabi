@@ -161,7 +161,7 @@ void CardKnowledge::update(const Server &server, const SmartBot &bot, bool useMy
     assert(value == this->value_);
 
     /* Rule out any cards that have been completely played and/or discarded. */
-    if (value == -1 || color == -1) {
+    if (!known()) {
         bool restart = false;
         for (Color k = RED; k <= BLUE; ++k) {
             for (int v = 1; v <= 5; ++v) {
@@ -332,7 +332,7 @@ void SmartBot::updateEyesightCount(const Server &server)
         if (p == me_) {
             for (int i=0; i < myHandSize_; ++i) {
                 CardKnowledge &knol = handKnowledge_[p][i];
-                if (knol.color() != -1 && knol.value() != -1) {
+                if (knol.known()) {
                     this->eyesightCount_[knol.color()][knol.value()] += 1;
                 }
             }
@@ -352,13 +352,9 @@ bool SmartBot::updateLocatedCount()
 
     for (int p=0; p < handKnowledge_.size(); ++p) {
         for (int i=0; i < handKnowledge_[p].size(); ++i) {
-            CardKnowledge &knol = handKnowledge_[p][i];
-            int k = knol.color();
-            if (k != -1) {
-                int v = knol.value();
-                if (v != -1) {
-                    newCount[k][v] += 1;
-                }
+            const CardKnowledge &knol = handKnowledge_[p][i];
+            if (knol.known()) {
+                newCount[knol.color()][knol.value()] += 1;
             }
         }
     }
@@ -462,9 +458,7 @@ void SmartBot::pleaseObserveBeforeDiscard(const Hanabi::Server &server, int from
     this->noValuableWarningWasGiven(server, from);
 
     const CardKnowledge& knol = handKnowledge_[from][card_index];
-    const int k = knol.color();
-    const int v = knol.value();
-    if (k != -1 && v != -1 && v != 5 && knol.playable() == YES) {
+    if (knol.known() && knol.playable() == YES) {
         /* Alice is discarding a playable card whose value she knows.
          * This indicates a "discard finesse": she can see someone at the table
          * with that same card as their newest card. Look around the table. If
@@ -813,10 +807,8 @@ bool SmartBot::maybeDiscardFinesse(Server &server)
 
     for (int i = 0; i < handKnowledge_[me_].size(); ++i) {
         const CardKnowledge& knol = handKnowledge_[me_][i];
-        int k = knol.color();
-        int v = knol.value();
-        if (k != -1 && v != -1 && v != 5 && knol.playable() == YES) {
-            myPlayableCards.push_back(Card(Color(k), v));
+        if (knol.known() && knol.value() != 5 && knol.playable() == YES) {
+            myPlayableCards.push_back(knol.knownCard());
             myPlayableIndices.push_back(i);
         }
     }
