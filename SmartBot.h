@@ -36,6 +36,8 @@ public:
     trivalue worthless() const { return worthless_; }
 
     double probabilityPlayable(const Hanabi::Server &server) const;
+    double probabilityWorthless() const { return probabilityWorthless_; }
+    double computeProbabilityWorthless(const SmartBot &bot, const Hanabi::Server &server) const;
 
 private:
     bool cantBe_[Hanabi::NUMCOLORS][5+1];
@@ -44,6 +46,7 @@ private:
     trivalue playable_;
     trivalue valuable_;
     trivalue worthless_;
+    double probabilityWorthless_;
 };
 
 struct Hint {

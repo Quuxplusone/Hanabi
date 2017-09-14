@@ -144,6 +144,23 @@ double CardKnowledge::probabilityPlayable(const Server &server) const
     return (double)yes_count / total_count;
 }
 
+double CardKnowledge::computeProbabilityWorthless(const SmartBot &bot, const Server &server) const
+{
+    if (worthless_ == NO) return 0.0;
+    if (worthless_ == YES) return 1.0;
+    int total_count = 0;
+    int yes_count = 0;
+    for (Color k = RED; k <= BLUE; ++k) {
+        for (int v = 1; v <= 5; ++v) {
+            if (this->cantBe_[k][v]) continue;
+            total_count += 1;
+            yes_count += bot.isWorthless(server, Card(k, v));
+        }
+    }
+    assert(total_count >= 1);
+    return (double)yes_count / total_count;
+}
+
 void CardKnowledge::update(const Server &server, const SmartBot &bot, bool useMyEyesight)
 {
     int color = this->color_;
@@ -236,6 +253,8 @@ void CardKnowledge::update(const Server &server, const SmartBot &bot, bool useMy
 
     if (worthless_ == YES) assert(valuable_ == NO);
     if (worthless_ == YES) assert(playable_ == NO);
+
+    probabilityWorthless_ = computeProbabilityWorthless(bot, server);
 }
 
 Hint::Hint()
@@ -385,27 +404,16 @@ bool SmartBot::updateLocatedCount()
 int SmartBot::nextDiscardIndex(int to) const
 {
     const int numCards = handKnowledge_[to].size();
-    int best_fitness = 0;
+    double best_fitness = 0;
     int best_index = -1;
     for (int i=0; i < numCards; ++i) {
         const CardKnowledge &knol = handKnowledge_[to][i];
-        int fitness = 0;
+
         if (knol.playable() == YES) return -1;  /* we should just play this card */
         if (knol.worthless() == YES) return -1;  /* we should already have discarded this card */
         if (knol.valuable() == YES) continue;  /* we should never discard this card */
 
-        static const int PLAYABLE = 16, VALUABLE = 4, WORTHLESS = 1;
-        switch (PLAYABLE*knol.playable() + VALUABLE*knol.valuable() + WORTHLESS*knol.worthless())
-        {
-            case    NO*PLAYABLE +    NO*VALUABLE +    NO*WORTHLESS:    fitness = 200; break;
-            case    NO*PLAYABLE +    NO*VALUABLE + MAYBE*WORTHLESS:    fitness = 400; break;
-            case    NO*PLAYABLE + MAYBE*VALUABLE +    NO*WORTHLESS:    fitness = 100; break;
-            case    NO*PLAYABLE + MAYBE*VALUABLE + MAYBE*WORTHLESS:    fitness = 300; break;
-            case MAYBE*PLAYABLE +    NO*VALUABLE +    NO*WORTHLESS:    fitness = 200; break;
-            case MAYBE*PLAYABLE +    NO*VALUABLE + MAYBE*WORTHLESS:    fitness = 400; break;
-            case MAYBE*PLAYABLE + MAYBE*VALUABLE +    NO*WORTHLESS:    fitness = 100; break;
-            case MAYBE*PLAYABLE + MAYBE*VALUABLE + MAYBE*WORTHLESS:    fitness = 300; break;
-        }
+        double fitness = 100 + knol.probabilityWorthless();
         if (fitness > best_fitness) {
             best_fitness = fitness;
             best_index = i;
