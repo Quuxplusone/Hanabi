@@ -128,6 +128,22 @@ void CardKnowledge::setIsWorthless(const SmartBot &bot, const Server& server, bo
     this->worthless_ = (knownWorthless ? YES : NO);
 }
 
+double CardKnowledge::probabilityPlayable(const Server &server) const
+{
+    int total_count = 0;
+    int yes_count = 0;
+    for (Color k = RED; k <= BLUE; ++k) {
+        int playableValue = server.pileOf(k).size() + 1;
+        for (int v = 1; v <= 5; ++v) {
+            if (this->cantBe_[k][v]) continue;
+            total_count += 1;
+            yes_count += (v == playableValue);
+        }
+    }
+    assert(total_count >= 1);
+    return (double)yes_count / total_count;
+}
+
 void CardKnowledge::update(const Server &server, const SmartBot &bot, bool useMyEyesight)
 {
     int color = this->color_;
@@ -865,14 +881,23 @@ bool SmartBot::maybePlayMysteryCard(Server &server)
          * an option; so let's do something that forces us to draw a card.
          * At this point, we might as well try to play something random
          * and hope we get lucky. */
+        double best_fitness = 0;
+        int best_index = -1;
         for (int i = handKnowledge_[me_].size() - 1; i >= 0; --i) {
             CardKnowledge eyeKnol = handKnowledge_[me_][i];
             eyeKnol.update(server, *this, /*useMyEyesight=*/true);
             assert(eyeKnol.playable() != YES);  /* or we would have played it already */
             if (eyeKnol.playable() == MAYBE) {
-                server.pleasePlay(i);
-                return true;
+                double fitness = eyeKnol.probabilityPlayable(server);
+                if (fitness > best_fitness) {
+                    best_fitness = fitness;
+                    best_index = i;
+                }
             }
+        }
+        if (best_index != -1) {
+            server.pleasePlay(best_index);
+            return true;
         }
     }
     return false;

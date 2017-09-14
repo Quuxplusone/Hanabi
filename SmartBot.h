@@ -35,6 +35,8 @@ public:
     trivalue valuable() const { return valuable_; }
     trivalue worthless() const { return worthless_; }
 
+    double probabilityPlayable(const Hanabi::Server &server) const;
+
 private:
     bool cantBe_[Hanabi::NUMCOLORS][5+1];
     int color_;
