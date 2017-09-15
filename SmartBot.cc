@@ -676,21 +676,19 @@ void SmartBot::pleaseObserveAfterMove(const Hanabi::Server &server)
 
 bool SmartBot::maybePlayLowestPlayableCard(Server &server)
 {
-    /* Try to find a card that nobody else knows I know is playable
-     * (because they don't see what I see). Let's try to get that card
-     * out of my hand before someone "helpfully" wastes a hint on it.
-     * Otherwise, prefer lower-valued cards over higher-valued ones.
-     */
-    CardKnowledge eyeKnol[5];
-    for (int i=0; i < myHandSize_; ++i) {
-        eyeKnol[i] = handKnowledge_[me_][i];
-        eyeKnol[i].update<true>();
-    }
-
     int best_index = -1;
-    int best_fitness = 0;
+    double best_fitness = 0;
     for (int i=0; i < myHandSize_; ++i) {
-        if (eyeKnol[i].playable() != YES) continue;
+        if (handKnowledge_[me_][i].playable() == NO) continue;
+
+        /* Try to find a card that nobody else knows I know is playable
+         * (because they don't see what I see). Let's try to get that card
+         * out of my hand before someone "helpfully" wastes a hint on it.
+         * Otherwise, prefer lower-valued cards over higher-valued ones.
+         */
+        CardKnowledge eyeKnol = handKnowledge_[me_][i];
+        eyeKnol.update<true>();
+        if (eyeKnol.playable() != YES) continue;
 
         /* How many further plays are enabled by this play?
          * Rough heuristic: 5 minus its value. Notice that this
@@ -699,7 +697,7 @@ bool SmartBot::maybePlayLowestPlayableCard(Server &server)
          * TODO: If both red 4s were discarded, then the red 3 doesn't open up any plays.
          * TODO: avoid stepping on other players' plays.
          */
-        int fitness = (6 - eyeKnol[i].value());
+        double fitness = (6 - eyeKnol.value());
         if (handKnowledge_[me_][i].playable() != YES) fitness += 100;
         if (fitness > best_fitness) {
             best_index = i;
@@ -718,23 +716,21 @@ bool SmartBot::maybePlayLowestPlayableCard(Server &server)
 
 bool SmartBot::maybeDiscardWorthlessCard(Server &server)
 {
-    /* Try to find a card that nobody else knows I know is worthless
-     * (because they don't see what I see). Let's try to get that card
-     * out of my hand before someone "helpfully" wastes a hint on it.
-     */
-    CardKnowledge eyeKnol[5];
-    for (int i=0; i < myHandSize_; ++i) {
-        eyeKnol[i] = handKnowledge_[me_][i];
-        eyeKnol[i].update<true>();
-    }
-
     int best_index = -1;
-    int best_fitness = 0;
+    double best_fitness = 0;
     for (int i=0; i < myHandSize_; ++i) {
-        if (eyeKnol[i].worthless() != YES) continue;
+        if (handKnowledge_[me_][i].worthless() == NO) continue;
 
-        /* Prefer cards that I've deduced are worthless. */
-        int fitness = (handKnowledge_[me_][i].worthless() == YES) ? 1 : 2;
+        /* Prefer a card that nobody else knows I know is worthless
+         * (because they don't see what I see). Let's try to get that card
+         * out of my hand before someone "helpfully" wastes a hint on it.
+         */
+        if (handKnowledge_[me_][i].worthless() == MAYBE) {
+            CardKnowledge eyeKnol = handKnowledge_[me_][i];
+            eyeKnol.update<true>();
+            if (eyeKnol.worthless() != YES) continue;
+        }
+        double fitness = 2.0 - handKnowledge_[me_][i].probabilityWorthless();
         if (fitness > best_fitness) {
             best_index = i;
             best_fitness = fitness;
