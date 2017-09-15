@@ -39,19 +39,19 @@ void CardKnowledge::setServer(const SmartBot &bot, const Hanabi::Server &server)
 
 CardKnowledge::CardKnowledge()
 {
-    color_ = -1;
-    value_ = -1;
+    color_ = -2;
+    value_ = -2;
     std::memset(cantBe_, '\0', sizeof cantBe_);
     playable_ = valuable_ = worthless_ = MAYBE;
     probabilityPlayable_ = probabilityValuable_ = probabilityWorthless_ = -1.0;
 }
 
-bool CardKnowledge::mustBe(Hanabi::Color color) const { return (this->color_ == color); }
-bool CardKnowledge::mustBe(Hanabi::Value value) const { return (this->value_ == value); }
+bool CardKnowledge::mustBe(Hanabi::Color color) const { computeIdentity(); return (this->color_ == color); }
+bool CardKnowledge::mustBe(Hanabi::Value value) const { computeIdentity(); return (this->value_ == value); }
 bool CardKnowledge::cannotBe(Hanabi::Card card) const { return cantBe_[card.color][card.value]; }
 bool CardKnowledge::cannotBe(Hanabi::Color color) const
 {
-    if (this->color_ != -1) return (this->color_ != color);
+    if (this->color_ >= 0) return (this->color_ != color);
     for (int v = 1; v <= 5; ++v) {
         if (!cantBe_[color][v]) return false;
     }
@@ -60,7 +60,7 @@ bool CardKnowledge::cannotBe(Hanabi::Color color) const
 
 bool CardKnowledge::cannotBe(Hanabi::Value value) const
 {
-    if (this->value_ != -1) return (this->value_ != value);
+    if (this->value_ >= 0) return (this->value_ != value);
     for (Color k = RED; k <= BLUE; ++k) {
         if (!cantBe_[k][value]) return false;
     }
@@ -75,6 +75,7 @@ void CardKnowledge::setMustBe(Hanabi::Color color)
         }
     }
     color_ = color;
+    if (value_ == -1) value_ = -2;
     if (playable_ == MAYBE) probabilityPlayable_ = -1.0;
     if (valuable_ == MAYBE) probabilityValuable_ = -1.0;
     if (worthless_ == MAYBE) probabilityWorthless_ = -1.0;
@@ -87,6 +88,7 @@ void CardKnowledge::setMustBe(Hanabi::Value value)
             if (v != value) cantBe_[k][v] = true;
         }
     }
+    if (color_ == -1) color_ = -2;
     value_ = value;
     if (playable_ == MAYBE) probabilityPlayable_ = -1.0;
     if (valuable_ == MAYBE) probabilityValuable_ = -1.0;
@@ -98,6 +100,8 @@ void CardKnowledge::setCannotBe(Hanabi::Color color)
     for (int v = 1; v <= 5; ++v) {
         cantBe_[color][v] = true;
     }
+    if (color_ == -1) color_ = -2;
+    if (value_ == -1) value_ = -2;
     if (playable_ == MAYBE) probabilityPlayable_ = -1.0;
     if (valuable_ == MAYBE) probabilityValuable_ = -1.0;
     if (worthless_ == MAYBE) probabilityWorthless_ = -1.0;
@@ -108,6 +112,8 @@ void CardKnowledge::setCannotBe(Hanabi::Value value)
     for (Color k = RED; k <= BLUE; ++k) {
         cantBe_[k][value] = true;
     }
+    if (color_ == -1) color_ = -2;
+    if (value_ == -1) value_ = -2;
     if (playable_ == MAYBE) probabilityPlayable_ = -1.0;
     if (valuable_ == MAYBE) probabilityValuable_ = -1.0;
     if (worthless_ == MAYBE) probabilityWorthless_ = -1.0;
@@ -124,6 +130,8 @@ void CardKnowledge::setIsPlayable(const Server& server, bool knownPlayable)
             }
         }
     }
+    if (color_ == -1) color_ = -2;
+    if (value_ == -1) value_ = -2;
     playable_ = (knownPlayable ? YES : NO);
     probabilityPlayable_ = (knownPlayable ? 1.0 : 0.0);
     if (valuable_ == MAYBE) probabilityValuable_ = -1.0;
@@ -140,6 +148,8 @@ void CardKnowledge::setIsValuable(const SmartBot &bot, const Server& server, boo
             }
         }
     }
+    if (color_ == -1) color_ = -2;
+    if (value_ == -1) value_ = -2;
     if (playable_ == MAYBE) probabilityPlayable_ = -1.0;
     valuable_ = (knownValuable ? YES : NO);
     probabilityValuable_ = (knownValuable ? 1.0 : 0.0);
@@ -156,10 +166,30 @@ void CardKnowledge::setIsWorthless(const SmartBot &bot, const Server& server, bo
             }
         }
     }
+    if (color_ == -1) color_ = -2;
+    if (value_ == -1) value_ = -2;
     if (playable_ == MAYBE) probabilityPlayable_ = -1.0;
     if (valuable_ == MAYBE) probabilityValuable_ = -1.0;
     worthless_ = (knownWorthless ? YES : NO);
     probabilityWorthless_ = (knownWorthless ? 1.0 : 0.0);
+}
+
+void CardKnowledge::computeIdentity() const
+{
+    if (color_ != -2 && value_ != -2) return;
+    int color = -2;
+    int value = -2;
+    for (Color k = RED; k <= BLUE; ++k) {
+        for (int v = 1; v <= 5; ++v) {
+            if (this->cantBe_[k][v]) continue;
+            color = (color == -2 || color == k) ? k : -1;
+            value = (value == -2 || value == v) ? v : -1;
+        }
+    }
+    assert(color != -2);
+    assert(value != -2);
+    color_ = color;
+    value_ = value;
 }
 
 void CardKnowledge::computePlayable() const
@@ -217,39 +247,13 @@ void CardKnowledge::computeWorthless() const
 template<bool useMyEyesight>
 void CardKnowledge::update()
 {
-    int color = this->color_;
-    int value = this->value_;
-
-    if (useMyEyesight) goto complicated_part;
-
-  repeat_loop:
-
-    if (color == -1) {
-        for (Color k = RED; k <= BLUE; ++k) {
-            if (this->cannotBe(k)) continue;
-            else if (color == -1) color = k;
-            else { color = -1; break; }
-        }
-        if (color != -1) this->setMustBe(Color(color));
-    }
-
-    if (value == -1) {
-        for (int v = 1; v <= 5; ++v) {
-            if (this->cannotBe(Value(v))) continue;
-            else if (value == -1) value = v;
-            else { value = -1; break; }
-        }
-        if (value != -1) this->setMustBe(Value(value));
-    }
-
-  complicated_part:
-
-    assert(color == this->color_);
-    assert(value == this->value_);
-
     /* Rule out any cards that have been completely played and/or discarded. */
     if (!known()) {
-        bool restart = false;
+        /* If this card is not known, then it cannot be any of the specific cards
+         * listed in locatedCount_/eyesightCount_. Notice that if this card HAS
+         * been identified, then it WILL be represented in locatedCount_, by
+         * definition, and so we should skip this logic in the "known" case. */
+        bool recompute = false;
         for (Color k = RED; k <= BLUE; ++k) {
             for (int v = 1; v <= 5; ++v) {
                 if (this->cantBe_[k][v]) continue;
@@ -259,11 +263,14 @@ void CardKnowledge::update()
                 assert(played+held <= total);
                 if (played+held == total) {
                     this->cantBe_[k][v] = true;
-                    restart = true;
+                    recompute = true;
                 }
             }
         }
-        if (restart) goto repeat_loop;
+        if (recompute) {
+            color_ = -2;
+            value_ = -2;
+        }
     }
 
     playable_ = valuable_ = worthless_ = MAYBE;

@@ -16,8 +16,8 @@ public:
     bool cannotBe(Hanabi::Card card) const;
     bool cannotBe(Hanabi::Color color) const;
     bool cannotBe(Hanabi::Value value) const;
-    int color() const { return color_; }
-    int value() const { return value_; }
+    int color() const { computeIdentity(); return color_; }
+    int value() const { computeIdentity(); return value_; }
 
     void setMustBe(Hanabi::Color color);
     void setMustBe(Hanabi::Value value);
@@ -30,7 +30,7 @@ public:
     template<bool useMyEyesight>
     void update();
 
-    bool known() const { return color_ != -1 && value_ != -1; }
+    bool known() const { computeIdentity(); return color_ != -1 && value_ != -1; }
     Hanabi::Card knownCard() const { return Hanabi::Card(Hanabi::Color(color_), value_); }
 
     trivalue playable() const { computePlayable(); return playable_; }
@@ -41,6 +41,7 @@ public:
     float probabilityValuable() const { computeValuable(); return probabilityValuable_; }
     float probabilityWorthless() const { computeWorthless(); return probabilityWorthless_; }
 
+    void computeIdentity() const;
     void computePlayable() const;
     void computeValuable() const;
     void computeWorthless() const;
@@ -52,8 +53,8 @@ private:
     static const Hanabi::Server *server_;
 
     bool cantBe_[Hanabi::NUMCOLORS][5+1];
-    int color_;
-    int value_;
+    mutable int color_;
+    mutable int value_;
     mutable trivalue playable_;
     mutable trivalue valuable_;
     mutable trivalue worthless_;
