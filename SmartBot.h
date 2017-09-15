@@ -11,6 +11,8 @@ class CardKnowledge {
 public:
     CardKnowledge();
 
+    std::string toString() const;
+
     bool mustBe(Hanabi::Color color) const;
     bool mustBe(Hanabi::Value value) const;
     bool cannotBe(Hanabi::Card card) const;

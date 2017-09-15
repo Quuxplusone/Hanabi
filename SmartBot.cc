@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
+#include <sstream>
 #include "Hanabi.h"
 #include "SmartBot.h"
 
@@ -44,6 +45,24 @@ CardKnowledge::CardKnowledge()
     std::memset(cantBe_, '\0', sizeof cantBe_);
     playable_ = valuable_ = worthless_ = MAYBE;
     probabilityPlayable_ = probabilityValuable_ = probabilityWorthless_ = -1.0;
+}
+
+std::string CardKnowledge::toString() const
+{
+    std::ostringstream result;
+    result << " roygb\n";
+    for (int v = 1; v <= 5; ++v) {
+        result << v;
+        for (int k = RED; k <= BLUE; ++k) {
+            result << (cantBe_[k][v] ? '.' : 'K');
+        }
+        result << '\n';
+    }
+    result << "color_ = " << color_ << ", value_ = " << value_ << "\n";
+    result << "playable_ = " << playable_ << " (" << probabilityPlayable_ << ")\n";
+    result << "valuable_ = " << valuable_ << " (" << probabilityValuable_ << ")\n";
+    result << "worthless_ = " << worthless_ << " (" << probabilityWorthless_ << ")\n";
+    return result.str();
 }
 
 bool CardKnowledge::mustBe(Hanabi::Color color) const { computeIdentity(); return (this->color_ == color); }
