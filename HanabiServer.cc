@@ -4,6 +4,7 @@
 #include <ostream>
 #include <random>
 #include <stdexcept>
+#include <sstream>
 #include <string>
 #include <vector>
 #include "Hanabi.h"
@@ -561,6 +562,35 @@ Card Server::draw_()
     Card result = deck_.back();
     deck_.pop_back();
     return result;
+}
+
+std::string Server::discardsAsString() const
+{
+    std::ostringstream oss;
+    for (const Card &card : discards_) {
+        oss << ' ' << card.toString();
+    }
+    return oss.str().substr(1);
+}
+
+std::string Server::handsAsString() const
+{
+    std::ostringstream oss;
+    for (int i=0; i < numPlayers_; ++i) {
+        for (int j=0; j < (int)hands_[i].size(); ++j) {
+            oss << (j ? ',' : ' ') << hands_[i][j].toString();
+        }
+    }
+    return oss.str().substr(1);
+}
+
+std::string Server::pilesAsString() const
+{
+    std::ostringstream oss;
+    for (Color k = RED; k <= BLUE; ++k) {
+        oss << ' ' << piles_[k].size() << Card(k, 1).toString()[1];
+    }
+    return oss.str().substr(1);
 }
 
 void Server::logHands_() const
