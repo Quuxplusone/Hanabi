@@ -67,6 +67,28 @@ bool CardKnowledge::cannotBe(Hanabi::Value value) const
     return true;
 }
 
+void CardKnowledge::befuddleByDiscard()
+{
+    /* A discard could make things valuable that were not valuable before;
+     * or make things worthless (if a valuable card was discarded).
+     */
+    valuable_ = MAYBE; probabilityValuable_ = -1.0f;
+    if (worthless_ != YES) { worthless_ = MAYBE; probabilityWorthless_ = -1.0f; }
+}
+
+void CardKnowledge::befuddleByPlay(bool success)
+{
+    /* A successful play could make new things playable; or make duplicates of
+     * the played card worthless. A failed play is equivalent to a discard.
+     */
+    if (success) {
+        playable_ = MAYBE; probabilityPlayable_ = -1.0f;
+    } else {
+        if (valuable_ != NO) { valuable_ = MAYBE; probabilityValuable_ = -1.0f; }
+    }
+    if (worthless_ != YES) { worthless_ = MAYBE; probabilityWorthless_ = -1.0f; }
+}
+
 void CardKnowledge::setMustBe(Hanabi::Color color)
 {
     for (Color k = RED; k <= BLUE; ++k) {
@@ -270,11 +292,10 @@ void CardKnowledge::update()
         if (recompute) {
             color_ = -2;
             value_ = -2;
+            playable_ = valuable_ = worthless_ = MAYBE;
+            probabilityPlayable_ = probabilityValuable_ = probabilityWorthless_ = -1.0f;
         }
     }
-
-    playable_ = valuable_ = worthless_ = MAYBE;
-    probabilityPlayable_ = probabilityValuable_ = probabilityWorthless_ = -1.0f;
 }
 
 Hint::Hint()
@@ -527,6 +548,12 @@ void SmartBot::pleaseObserveBeforeDiscard(const Hanabi::Server &server, int from
         }
     }
 
+    for (auto&& hand : handKnowledge_) {
+        for (CardKnowledge &knol : hand) {
+            knol.befuddleByDiscard();
+        }
+    }
+
     this->seePublicCard(card);
     this->invalidateKnol(from, card_index);
 }
@@ -535,15 +562,21 @@ void SmartBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, i
 {
     CardKnowledge::setServer(*this, server);
     assert(server.whoAmI() == me_);
+    Card card = server.activeCard();
+    const bool success = this->isPlayable(server, card);
 
     this->noValuableWarningWasGiven(server, from);
-
-    Card card = server.activeCard();
 
     assert(handKnowledge_[from][card_index].worthless() != YES);
     if (handKnowledge_[from][card_index].valuable() == YES) {
         /* We weren't wrong about this card being valuable, were we? */
         assert(this->isValuable(server, card));
+    }
+
+    for (auto&& hand : handKnowledge_) {
+        for (CardKnowledge &knol : hand) {
+            knol.befuddleByPlay(success);
+        }
     }
 
     this->seePublicCard(card);
@@ -854,7 +887,7 @@ bool SmartBot::maybeDiscardFinesse(Server &server)
 
     for (int i = 0; i < handKnowledge_[me_].size(); ++i) {
         const CardKnowledge& knol = handKnowledge_[me_][i];
-        if (knol.known() && knol.value() != 5 && knol.playable() == YES) {
+        if (knol.known() && knol.valuable() == NO && knol.playable() == YES) {
             myPlayableCards.push_back(knol.knownCard());
             myPlayableIndices.push_back(i);
         }
