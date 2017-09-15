@@ -26,27 +26,40 @@ public:
     void setIsPlayable(const Hanabi::Server &server, bool knownPlayable);
     void setIsValuable(const SmartBot &bot, const Hanabi::Server &server, bool knownValuable);
     void setIsWorthless(const SmartBot &bot, const Hanabi::Server &server, bool knownWorthless);
-    void update(const Hanabi::Server &server, const SmartBot &bot, bool useMyEyesight);
+
+    template<bool useMyEyesight>
+    void update();
 
     bool known() const { return color_ != -1 && value_ != -1; }
     Hanabi::Card knownCard() const { return Hanabi::Card(Hanabi::Color(color_), value_); }
 
-    trivalue playable() const { return playable_; }
-    trivalue valuable() const { return valuable_; }
-    trivalue worthless() const { return worthless_; }
+    trivalue playable() const { computePlayable(); return playable_; }
+    trivalue valuable() const { computeValuable(); return valuable_; }
+    trivalue worthless() const { computeWorthless(); return worthless_; }
 
-    double probabilityPlayable(const Hanabi::Server &server) const;
-    double probabilityWorthless() const { return probabilityWorthless_; }
-    double computeProbabilityWorthless(const SmartBot &bot, const Hanabi::Server &server) const;
+    float probabilityPlayable() const { computePlayable(); return probabilityPlayable_; }
+    float probabilityValuable() const { computeValuable(); return probabilityValuable_; }
+    float probabilityWorthless() const { computeWorthless(); return probabilityWorthless_; }
+
+    void computePlayable() const;
+    void computeValuable() const;
+    void computeWorthless() const;
+
+    static void setServer(const SmartBot &bot, const Hanabi::Server &server);
 
 private:
+    static const SmartBot *bot_;
+    static const Hanabi::Server *server_;
+
     bool cantBe_[Hanabi::NUMCOLORS][5+1];
     int color_;
     int value_;
-    trivalue playable_;
-    trivalue valuable_;
-    trivalue worthless_;
-    double probabilityWorthless_;
+    mutable trivalue playable_;
+    mutable trivalue valuable_;
+    mutable trivalue worthless_;
+    mutable float probabilityPlayable_;
+    mutable float probabilityValuable_;
+    mutable float probabilityWorthless_;
 };
 
 struct Hint {
