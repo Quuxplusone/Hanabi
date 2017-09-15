@@ -567,11 +567,13 @@ void SmartBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, i
 
     this->noValuableWarningWasGiven(server, from);
 
+#ifndef NDEBUG
     assert(handKnowledge_[from][card_index].worthless() != YES);
     if (handKnowledge_[from][card_index].valuable() == YES) {
         /* We weren't wrong about this card being valuable, were we? */
         assert(this->isValuable(server, card));
     }
+#endif
 
     for (auto&& hand : handKnowledge_) {
         for (CardKnowledge &knol : hand) {
