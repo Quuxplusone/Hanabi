@@ -189,6 +189,12 @@ public:
      * Throws an exception if there are no hint-stones left. */
     void pleaseGiveValueHint(int player, Value value);
 
+    /*================= DEBUGGING TOOLS ======================*/
+
+    std::string handsAsString() const;
+    std::string pilesAsString() const;
+    std::string discardsAsString() const;
+
     /*================= PRIVATE MEMBERS ======================*/
 private:
     /* Administrivia */
