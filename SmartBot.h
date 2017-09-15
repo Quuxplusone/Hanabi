@@ -26,6 +26,8 @@ public:
     void setIsPlayable(const Hanabi::Server &server, bool knownPlayable);
     void setIsValuable(const SmartBot &bot, const Hanabi::Server &server, bool knownValuable);
     void setIsWorthless(const SmartBot &bot, const Hanabi::Server &server, bool knownWorthless);
+    void befuddleByDiscard();
+    void befuddleByPlay(bool success);
 
     template<bool useMyEyesight>
     void update();
