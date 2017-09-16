@@ -373,32 +373,24 @@ bool SmartBot::isWorthless(const Server &server, Card card) const
     return false;
 }
 
-/* Could "knol" be playable, if it were known to be of value "value"? */
-bool SmartBot::couldBePlayableWithValue(const Server &server, const CardKnowledge &knol, int value) const
+/* Could this card be playable, if it were known to be of value "value"? */
+bool CardKnowledge::couldBePlayableWithValue(int value) const
 {
-    if (value < 1 || 5 < value) return false;
-    if (knol.playable() != MAYBE) return false;
-    for (Color k = RED; k <= BLUE; ++k) {
-        Card card(k, value);
-        if (knol.cannotBe(card)) continue;
-        if (this->isPlayable(server, card))
-            return true;
-    }
-    return false;
+    if (value < 1 || 5 < value || this->cannotBe(Value(value))) return false;
+    if (this->playable() != MAYBE) return false;
+    CardKnowledge newKnol = *this;
+    newKnol.setMustBe(Value(value));
+    return newKnol.playable() != NO;
 }
 
-/* Could "knol" be valuable, if it were known to be of value "value"? */
-bool SmartBot::couldBeValuableWithValue(const Server &server, const CardKnowledge &knol, int value) const
+/* Could this card be valuable, if it were known to be of value "value"? */
+bool CardKnowledge::couldBeValuableWithValue(int value) const
 {
-    if (value < 1 || 5 < value) return false;
-    if (knol.valuable() != MAYBE) return false;
-    for (Color k = RED; k <= BLUE; ++k) {
-        Card card(k, value);
-        if (knol.cannotBe(card)) continue;
-        if (this->isValuable(server, card))
-            return true;
-    }
-    return false;
+    if (value < 1 || 5 < value || this->cannotBe(Value(value))) return false;
+    if (this->valuable() != MAYBE) return false;
+    CardKnowledge newKnol = *this;
+    newKnol.setMustBe(Value(value));
+    return newKnol.valuable() != NO;
 }
 
 void SmartBot::invalidateKnol(int player_index, int card_index)
@@ -658,7 +650,7 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
         !isHintStoneReclaim &&
         (to == playerExpectingWarning) &&
         vector_contains(card_indices, discardIndex) &&
-        couldBeValuableWithValue(server, handKnowledge_[to][discardIndex], value);
+        handKnowledge_[to][discardIndex].couldBeValuableWithValue(value);
 
     if (isWarning) {
         assert(discardIndex != -1);
@@ -821,7 +813,7 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
         if (discardIndex != -1) {
             const CardKnowledge &knol = handKnowledge_[partner][discardIndex];
             valueToAvoid = partners_hand[discardIndex].value;
-            if (!couldBeValuableWithValue(server, knol, valueToAvoid)) valueToAvoid = -1;
+            if (!knol.couldBeValuableWithValue(valueToAvoid)) valueToAvoid = -1;
         }
     }
 
@@ -839,7 +831,7 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
                     seenPlayable = true;
                     playability_content = 1;
                 } else {
-                    if (!seenPlayable && couldBePlayableWithValue(server, knol, value)) {
+                    if (!seenPlayable && knol.couldBePlayableWithValue(value)) {
                         misinformative = true;
                         break;
                     }

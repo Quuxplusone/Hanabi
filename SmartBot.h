@@ -45,6 +45,9 @@ public:
     float probabilityValuable() const { computeValuable(); return probabilityValuable_; }
     float probabilityWorthless() const { computeWorthless(); return probabilityWorthless_; }
 
+    bool couldBePlayableWithValue(int value) const;
+    bool couldBeValuableWithValue(int value) const;
+
     void computeIdentity() const;
     void computePlayable() const;
     void computeValuable() const;
@@ -98,8 +101,6 @@ class SmartBot : public Hanabi::Bot {
     bool isPlayable(const Hanabi::Server &server, Hanabi::Card card) const;
     bool isValuable(const Hanabi::Server &server, Hanabi::Card card) const;
     bool isWorthless(const Hanabi::Server &server, Hanabi::Card card) const;
-    bool couldBePlayableWithValue(const Hanabi::Server &server, const CardKnowledge &knol, int value) const;
-    bool couldBeValuableWithValue(const Hanabi::Server &server, const CardKnowledge &knol, int value) const;
 
     void updateEyesightCount(const Hanabi::Server &server);
     bool updateLocatedCount();
