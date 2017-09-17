@@ -565,8 +565,11 @@ void SmartBot::pleaseObserveBeforeDiscard(const Hanabi::Server &server, int from
     server_ = &server;
     assert(server.whoAmI() == me_);
     Card card = server.activeCard();
+    bool massiveStrategy = this->shouldUseMassiveStrategy();
 
-    this->noValuableWarningWasGiven(server, from);
+    if (!massiveStrategy) {
+        this->noValuableWarningWasGiven(server, from);
+    }
 
     const CardKnowledge& knol = handKnowledge_[from][card_index];
     if (knol.known() && knol.playable() == YES) {
@@ -608,8 +611,11 @@ void SmartBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, i
     assert(server.whoAmI() == me_);
     Card card = server.activeCard();
     const bool success = this->isPlayable(card);
+    bool massiveStrategy = this->shouldUseMassiveStrategy();
 
-    this->noValuableWarningWasGiven(server, from);
+    if (!massiveStrategy) {
+        this->noValuableWarningWasGiven(server, from);
+    }
 
 #ifndef NDEBUG
     assert(handKnowledge_[from][card_index].worthless() != YES);
@@ -633,31 +639,44 @@ void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
 {
     server_ = &server;
     assert(server.whoAmI() == me_);
-
-    /* Alice has given Bob a color hint. Using SmartBot's strategy,
-     * this means that the newest (possible) of the named cards is
-     * currently playable. */
-
-    const int playerExpectingWarning = (from + 1) % handKnowledge_.size();
-    if (to != playerExpectingWarning) {
-        this->noValuableWarningWasGiven(server, from);
-    }
-
+    bool massiveStrategy = this->shouldUseMassiveStrategy();
     const int numCards = server.sizeOfHandOfPlayer(to);
 
-    bool seenPlayable = false;
-    for (int i=numCards-1; i >= 0; --i) {
-        CardKnowledge &knol = handKnowledge_[to][i];
-        if (vector_contains(card_indices, i)) {
-            const bool wasMaybePlayable = (knol.playable() == MAYBE);
-            knol.setMustBe(color);
-            const bool isntUnplayable = (knol.playable() != NO);
-            if (wasMaybePlayable && isntUnplayable && !seenPlayable) {
-                seenPlayable = true;
-                knol.setIsPlayable(true);
+    if (massiveStrategy) {
+        // TODO: interpret massive hint
+
+        for (int i=0; i < numCards; ++i) {
+            CardKnowledge &knol = handKnowledge_[to][i];
+            if (vector_contains(card_indices, i)) {
+                knol.setMustBe(color);
+            } else {
+                knol.setCannotBe(color);
             }
-        } else {
-            knol.setCannotBe(color);
+        }
+    } else {
+        /* Alice has given Bob a color hint. Using SmartBot's strategy,
+         * this means that the newest (possible) of the named cards is
+         * currently playable. */
+
+        const int playerExpectingWarning = (from + 1) % handKnowledge_.size();
+        if (to != playerExpectingWarning) {
+            this->noValuableWarningWasGiven(server, from);
+        }
+
+        bool seenPlayable = false;
+        for (int i=numCards-1; i >= 0; --i) {
+            CardKnowledge &knol = handKnowledge_[to][i];
+            if (vector_contains(card_indices, i)) {
+                const bool wasMaybePlayable = (knol.playable() == MAYBE);
+                knol.setMustBe(color);
+                const bool isntUnplayable = (knol.playable() != NO);
+                if (wasMaybePlayable && isntUnplayable && !seenPlayable) {
+                    seenPlayable = true;
+                    knol.setIsPlayable(true);
+                }
+            } else {
+                knol.setCannotBe(color);
+            }
         }
     }
 }
@@ -666,49 +685,64 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
 {
     server_ = &server;
     assert(server.whoAmI() == me_);
-
-    /* Someone has given Bob a value hint. If the named cards
-     * include the one Bob would normally be discarding next,
-     * then this must be a warning that that card is valuable.
-     * Otherwise, all the named cards are playable. */
-
-    const int playerExpectingWarning = (from + 1) % handKnowledge_.size();
-    const int discardIndex = this->nextDiscardIndex(playerExpectingWarning);
-
-    const bool isHintStoneReclaim =
-        (!server.discardingIsAllowed()) &&
-        (from == (to+1) % server.numPlayers()) &&
-        vector_contains(card_indices, 0);
-    const bool isWarning =
-        !isHintStoneReclaim &&
-        (to == playerExpectingWarning) &&
-        vector_contains(card_indices, discardIndex) &&
-        handKnowledge_[to][discardIndex].couldBeValuableWithValue(value);
-
-    if (isWarning) {
-        assert(discardIndex != -1);
-        handKnowledge_[to][discardIndex].setIsValuable(true);
-    }
-
-    if (to != playerExpectingWarning) {
-        this->noValuableWarningWasGiven(server, from);
-    }
-
+    bool massiveStrategy = this->shouldUseMassiveStrategy();
     const int numCards = server.sizeOfHandOfPlayer(to);
 
-    bool seenPlayable = false;
-    for (int i=numCards-1; i >= 0; --i) {
-        CardKnowledge &knol = handKnowledge_[to][i];
-        if (vector_contains(card_indices, i)) {
-            const bool wasMaybePlayable = (knol.playable() == MAYBE);
-            knol.setMustBe(value);
-            const bool isntUnplayable = (knol.playable() != NO);
-            if (!isWarning && !isHintStoneReclaim && wasMaybePlayable && isntUnplayable && !seenPlayable) {
-                seenPlayable = true;
-                knol.setIsPlayable(true);
+    if (massiveStrategy) {
+        // TODO: interpret massive hint
+
+        for (int i=0; i< numCards; ++i) {
+            CardKnowledge &knol = handKnowledge_[to][i];
+            if (vector_contains(card_indices, i)) {
+                knol.setMustBe(value);
+            } else {
+                knol.setCannotBe(value);
             }
-        } else {
-            knol.setCannotBe(value);
+        }
+    } else {
+        /* Someone has given Bob a value hint. If the named cards
+         * include the one Bob would normally be discarding next,
+         * then this must be a warning that that card is valuable.
+         * Otherwise, all the named cards are playable. */
+
+        const int playerExpectingWarning = (from + 1) % handKnowledge_.size();
+        const int discardIndex = this->nextDiscardIndex(playerExpectingWarning);
+
+        const bool isHintStoneReclaim =
+            (!server.discardingIsAllowed()) &&
+            (from == (to+1) % server.numPlayers()) &&
+            vector_contains(card_indices, 0);
+        const bool isWarning =
+            !isHintStoneReclaim &&
+            (to == playerExpectingWarning) &&
+            vector_contains(card_indices, discardIndex) &&
+            handKnowledge_[to][discardIndex].couldBeValuableWithValue(value);
+
+        if (isWarning) {
+            assert(discardIndex != -1);
+            handKnowledge_[to][discardIndex].setIsValuable(true);
+        }
+
+        if (to != playerExpectingWarning) {
+            this->noValuableWarningWasGiven(server, from);
+        }
+
+        const int numCards = server.sizeOfHandOfPlayer(to);
+
+        bool seenPlayable = false;
+        for (int i=numCards-1; i >= 0; --i) {
+            CardKnowledge &knol = handKnowledge_[to][i];
+            if (vector_contains(card_indices, i)) {
+                const bool wasMaybePlayable = (knol.playable() == MAYBE);
+                knol.setMustBe(value);
+                const bool isntUnplayable = (knol.playable() != NO);
+                if (!isWarning && !isHintStoneReclaim && wasMaybePlayable && isntUnplayable && !seenPlayable) {
+                    seenPlayable = true;
+                    knol.setIsPlayable(true);
+                }
+            } else {
+                knol.setCannotBe(value);
+            }
         }
     }
 }
@@ -1027,14 +1061,17 @@ void SmartBot::pleaseMakeMove(Server &server)
     assert(server.activePlayer() == me_);
     assert(UseMulligans || !server.mulligansUsed());
 
+    const bool massiveStrategy = shouldUseMassiveStrategy();
+
     if (server.cardsRemainingInDeck() == 0) {
         if (maybePlayLowestPlayableCard(server)) return;
         if (maybePlayMysteryCard(server)) return;
     }
-    if (maybeGiveValuableWarning(server)) return;
+    if (massiveStrategy && maybeGiveMassiveHint(server)) return;
+    if (!massiveStrategy && maybeGiveValuableWarning(server)) return;
     if (maybeDiscardFinesse(server)) return;
     if (maybePlayLowestPlayableCard(server)) return;
-    if (maybeGiveHelpfulHint(server)) return;
+    if (!massiveStrategy && maybeGiveHelpfulHint(server)) return;
     if (maybePlayMysteryCard(server)) return;
 
     /* We couldn't find a good hint to give, or else we're out of hint-stones.
@@ -1062,4 +1099,14 @@ void SmartBot::pleaseMakeMove(Server &server)
         }
         server.pleaseDiscard(best_index);
     }
+}
+
+bool SmartBot::shouldUseMassiveStrategy() const
+{
+    return false;
+}
+
+bool SmartBot::maybeGiveMassiveHint(Server &server)
+{
+    return false;
 }

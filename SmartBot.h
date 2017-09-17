@@ -128,6 +128,9 @@ class SmartBot : public Hanabi::Bot {
     bool maybeDiscardWorthlessCard(Hanabi::Server &server);
     bool maybeDiscardOldCard(Hanabi::Server &server);
 
+    bool shouldUseMassiveStrategy() const;
+    bool maybeGiveMassiveHint(Hanabi::Server &server);
+
   public:
     SmartBot(int index, int numPlayers, int handSize);
     virtual void pleaseObserveBeforeMove(const Hanabi::Server &);
