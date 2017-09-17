@@ -92,7 +92,7 @@ void CardKnowledge::befuddleByDiscard()
     /* A discard could make things valuable that were not valuable before;
      * or make things worthless (if a valuable card was discarded).
      */
-    valuable_ = MAYBE; probabilityValuable_ = -1.0f;
+    if (worthless_ != YES) { valuable_ = MAYBE; probabilityValuable_ = -1.0f; }
     if (worthless_ != YES) { worthless_ = MAYBE; probabilityWorthless_ = -1.0f; }
 }
 
@@ -183,6 +183,7 @@ void CardKnowledge::setIsPlayable(const Server& server, bool knownPlayable)
     probabilityPlayable_ = (knownPlayable ? 1.0 : 0.0);
     if (valuable_ == MAYBE) probabilityValuable_ = -1.0;
     if (worthless_ == MAYBE) probabilityWorthless_ = -1.0;
+    if (knownPlayable) { worthless_ = NO; probabilityWorthless_ = 0.0; }
 }
 
 void CardKnowledge::setIsValuable(const SmartBot &bot, const Server& server, bool knownValuable)
@@ -202,6 +203,7 @@ void CardKnowledge::setIsValuable(const SmartBot &bot, const Server& server, boo
     valuable_ = (knownValuable ? YES : NO);
     probabilityValuable_ = (knownValuable ? 1.0 : 0.0);
     if (worthless_ == MAYBE) probabilityWorthless_ = -1.0;
+    if (knownValuable) { worthless_ = NO; probabilityWorthless_ = 0.0; }
 }
 
 void CardKnowledge::setIsWorthless(const SmartBot &bot, const Server& server, bool knownWorthless)
@@ -221,6 +223,7 @@ void CardKnowledge::setIsWorthless(const SmartBot &bot, const Server& server, bo
     if (valuable_ == MAYBE) probabilityValuable_ = -1.0;
     worthless_ = (knownWorthless ? YES : NO);
     probabilityWorthless_ = (knownWorthless ? 1.0 : 0.0);
+    if (knownWorthless) { playable_ = valuable_ = NO; probabilityPlayable_ = probabilityValuable_ = 0.0; }
 }
 
 void CardKnowledge::computeIdentity() const
