@@ -1,9 +1,10 @@
 
 #include "Hanabi.h"
+#include <cstdint>
 
 class SmartBot;
 
-enum trivalue {
+enum trivalue : int8_t {
     NO, MAYBE, YES
 };
 
@@ -18,8 +19,6 @@ public:
     bool cannotBe(Hanabi::Card card) const;
     bool cannotBe(Hanabi::Color color) const;
     bool cannotBe(Hanabi::Value value) const;
-    int color() const { computeIdentity(); return color_; }
-    int value() const { computeIdentity(); return value_; }
 
     void setMustBe(Hanabi::Color color);
     void setMustBe(Hanabi::Value value);
@@ -35,7 +34,11 @@ public:
     void update();
 
     bool known() const { computeIdentity(); return color_ != -1 && value_ != -1; }
-    Hanabi::Card knownCard() const { return Hanabi::Card(Hanabi::Color(color_), value_); }
+    int color() const { computeIdentity(); return color_; }
+    int value() const { computeIdentity(); return value_; }
+    Hanabi::Card knownCard() const { assert(known()); return Hanabi::Card(Hanabi::Color(color_), value_); }
+
+    int possibilities() const { computePossibilities(); return possibilities_; }
 
     trivalue playable() const { computePlayable(); return playable_; }
     trivalue valuable() const { computeValuable(); return valuable_; }
@@ -49,6 +52,7 @@ public:
     bool couldBeValuableWithValue(int value) const;
 
     void computeIdentity() const;
+    void computePossibilities() const;
     void computePlayable() const;
     void computeValuable() const;
     void computeWorthless() const;
@@ -60,8 +64,9 @@ private:
     static const Hanabi::Server *server_;
 
     bool cantBe_[Hanabi::NUMCOLORS][5+1];
-    mutable int color_;
-    mutable int value_;
+    mutable int8_t possibilities_;
+    mutable int8_t color_;
+    mutable int8_t value_;
     mutable trivalue playable_;
     mutable trivalue valuable_;
     mutable trivalue worthless_;

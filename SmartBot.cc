@@ -40,6 +40,7 @@ void CardKnowledge::setServer(const SmartBot &bot, const Hanabi::Server &server)
 
 CardKnowledge::CardKnowledge()
 {
+    possibilities_ = -1;
     color_ = -2;
     value_ = -2;
     std::memset(cantBe_, '\0', sizeof cantBe_);
@@ -115,6 +116,7 @@ void CardKnowledge::setMustBe(Hanabi::Color color)
             if (k != color) cantBe_[k][v] = true;
         }
     }
+    possibilities_ = -1;
     color_ = color;
     if (value_ == -1) value_ = -2;
     if (playable_ == MAYBE) probabilityPlayable_ = -1.0;
@@ -129,6 +131,7 @@ void CardKnowledge::setMustBe(Hanabi::Value value)
             if (v != value) cantBe_[k][v] = true;
         }
     }
+    possibilities_ = -1;
     if (color_ == -1) color_ = -2;
     value_ = value;
     if (playable_ == MAYBE) probabilityPlayable_ = -1.0;
@@ -141,6 +144,7 @@ void CardKnowledge::setCannotBe(Hanabi::Color color)
     for (int v = 1; v <= 5; ++v) {
         cantBe_[color][v] = true;
     }
+    possibilities_ = -1;
     if (color_ == -1) color_ = -2;
     if (value_ == -1) value_ = -2;
     if (playable_ == MAYBE) probabilityPlayable_ = -1.0;
@@ -153,6 +157,7 @@ void CardKnowledge::setCannotBe(Hanabi::Value value)
     for (Color k = RED; k <= BLUE; ++k) {
         cantBe_[k][value] = true;
     }
+    possibilities_ = -1;
     if (color_ == -1) color_ = -2;
     if (value_ == -1) value_ = -2;
     if (playable_ == MAYBE) probabilityPlayable_ = -1.0;
@@ -171,6 +176,7 @@ void CardKnowledge::setIsPlayable(const Server& server, bool knownPlayable)
             }
         }
     }
+    possibilities_ = -1;
     if (color_ == -1) color_ = -2;
     if (value_ == -1) value_ = -2;
     playable_ = (knownPlayable ? YES : NO);
@@ -189,6 +195,7 @@ void CardKnowledge::setIsValuable(const SmartBot &bot, const Server& server, boo
             }
         }
     }
+    possibilities_ = -1;
     if (color_ == -1) color_ = -2;
     if (value_ == -1) value_ = -2;
     if (playable_ == MAYBE) probabilityPlayable_ = -1.0;
@@ -207,6 +214,7 @@ void CardKnowledge::setIsWorthless(const SmartBot &bot, const Server& server, bo
             }
         }
     }
+    possibilities_ = -1;
     if (color_ == -1) color_ = -2;
     if (value_ == -1) value_ = -2;
     if (playable_ == MAYBE) probabilityPlayable_ = -1.0;
@@ -231,6 +239,19 @@ void CardKnowledge::computeIdentity() const
     assert(value != -2);
     color_ = color;
     value_ = value;
+}
+
+void CardKnowledge::computePossibilities() const
+{
+    if (possibilities_ != -1) return;
+    int possibilities = 0;
+    for (Color k = RED; k <= BLUE; ++k) {
+        for (int v = 1; v <= 5; ++v) {
+            possibilities += !this->cantBe_[k][v];
+        }
+    }
+    assert(possibilities >= 1);
+    possibilities_ = possibilities;
 }
 
 void CardKnowledge::computePlayable() const
@@ -309,6 +330,7 @@ void CardKnowledge::update()
             }
         }
         if (recompute) {
+            possibilities_ = -1;
             color_ = -2;
             value_ = -2;
             playable_ = valuable_ = worthless_ = MAYBE;
