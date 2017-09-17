@@ -10,7 +10,7 @@ enum trivalue : int8_t {
 
 class CardKnowledge {
 public:
-    CardKnowledge();
+    explicit CardKnowledge(const SmartBot *bot);
 
     std::string toString() const;
 
@@ -24,9 +24,9 @@ public:
     void setMustBe(Hanabi::Value value);
     void setCannotBe(Hanabi::Color color);
     void setCannotBe(Hanabi::Value value);
-    void setIsPlayable(const Hanabi::Server &server, bool knownPlayable);
-    void setIsValuable(const SmartBot &bot, const Hanabi::Server &server, bool knownValuable);
-    void setIsWorthless(const SmartBot &bot, const Hanabi::Server &server, bool knownWorthless);
+    void setIsPlayable(bool knownPlayable);
+    void setIsValuable(bool knownValuable);
+    void setIsWorthless(bool knownWorthless);
     void befuddleByDiscard();
     void befuddleByPlay(bool success);
 
@@ -57,11 +57,8 @@ public:
     void computeValuable() const;
     void computeWorthless() const;
 
-    static void setServer(const SmartBot &bot, const Hanabi::Server &server);
-
 private:
-    static const SmartBot *bot_;
-    static const Hanabi::Server *server_;
+    const SmartBot *bot_;
 
     bool cantBe_[Hanabi::NUMCOLORS][5+1];
     mutable int8_t possibilities_;
@@ -89,6 +86,7 @@ class SmartBot : public Hanabi::Bot {
 
     friend class CardKnowledge;
 
+    const Hanabi::Server *server_;
     int me_;
     int myHandSize_;  /* purely for convenience */
 
@@ -103,9 +101,9 @@ class SmartBot : public Hanabi::Bot {
      * This table is recomputed every turn. */
     int eyesightCount_[Hanabi::NUMCOLORS][5+1];
 
-    bool isPlayable(const Hanabi::Server &server, Hanabi::Card card) const;
-    bool isValuable(const Hanabi::Server &server, Hanabi::Card card) const;
-    bool isWorthless(const Hanabi::Server &server, Hanabi::Card card) const;
+    bool isPlayable(Hanabi::Card card) const;
+    bool isValuable(Hanabi::Card card) const;
+    bool isWorthless(Hanabi::Card card) const;
 
     void updateEyesightCount(const Hanabi::Server &server);
     bool updateLocatedCount();
