@@ -132,6 +132,21 @@ void CardKnowledge::setMustBe(Hanabi::Value value)
     if (worthless_ == MAYBE) probabilityWorthless_ = -1.0;
 }
 
+void CardKnowledge::setMustBe(Hanabi::Card card)
+{
+    for (Color k = RED; k <= BLUE; ++k) {
+        for (int v = 1; v <= 5; ++v) {
+            cantBe_[k][v] = !(k == card.color && v == card.value);
+        }
+    }
+    possibilities_ = 1;
+    color_ = card.color;
+    value_ = card.value;
+    if (playable_ == MAYBE) probabilityPlayable_ = -1.0;
+    if (valuable_ == MAYBE) probabilityValuable_ = -1.0;
+    if (worthless_ == MAYBE) probabilityWorthless_ = -1.0;
+}
+
 void CardKnowledge::setCannotBe(Hanabi::Color color)
 {
     for (int v = 1; v <= 5; ++v) {

@@ -22,6 +22,7 @@ public:
 
     void setMustBe(Hanabi::Color color);
     void setMustBe(Hanabi::Value value);
+    void setMustBe(Hanabi::Card card);
     void setCannotBe(Hanabi::Color color);
     void setCannotBe(Hanabi::Value value);
     void setIsPlayable(bool knownPlayable);
