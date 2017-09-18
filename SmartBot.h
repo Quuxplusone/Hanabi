@@ -40,6 +40,8 @@ public:
     Hanabi::Card knownCard() const { assert(known()); return Hanabi::Card(Hanabi::Color(color_), value_); }
 
     int possibilities() const { computePossibilities(); return possibilities_; }
+    int possibilityIndexOf(Hanabi::Card card) const;
+    Hanabi::Card cardFromPossibilityIndex(int index) const;
 
     trivalue playable() const { computePlayable(); return playable_; }
     trivalue valuable() const { computeValuable(); return valuable_; }
@@ -80,12 +82,33 @@ struct Hint {
     int value;
 
     Hint();
+    std::string toString() const;
+    bool isLegal(const Hanabi::Server &) const;
     void give(Hanabi::Server &);
+};
+
+class MassiveVector {
+public:
+    explicit MassiveVector(const SmartBot *bot, int from);
+    int massiveIndexOfPlayer(int who) const { return card_indices_[who]; }
+    int sumExcludingOne(int from) const;
+    int sumExcludingTwo(int from, int me) const;
+    int modPossibilities(int x) const { return (x + 256*possibilities_) % possibilities_; }
+    int possibilities() const { return possibilities_; }
+    Hint intToHint(int x) const;
+    int intToHintMax() const;
+    int hintToInt(const Hint &hint) const;
+private:
+    const SmartBot *bot_;
+    std::vector<int> card_indices_;
+    int8_t from_;
+    int8_t possibilities_;
 };
 
 class SmartBot : public Hanabi::Bot {
 
     friend class CardKnowledge;
+    friend class MassiveVector;
 
     const Hanabi::Server *server_;
     int me_;
@@ -128,8 +151,10 @@ class SmartBot : public Hanabi::Bot {
     bool maybeDiscardWorthlessCard(Hanabi::Server &server);
     bool maybeDiscardOldCard(Hanabi::Server &server);
 
-    bool shouldUseMassiveStrategy() const;
+    bool shouldUseMassiveStrategy(int from) const;
     bool maybeGiveMassiveHint(Hanabi::Server &server);
+    void interpretMassiveHint(const Hint &hint, int from);
+    void noMassiveHintWasGiven(const Hanabi::Server &server, int from);
 
   public:
     SmartBot(int index, int numPlayers, int handSize);

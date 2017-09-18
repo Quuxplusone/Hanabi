@@ -265,6 +265,36 @@ void CardKnowledge::computePossibilities() const
     possibilities_ = possibilities;
 }
 
+int CardKnowledge::possibilityIndexOf(Card card) const
+{
+    assert(!this->cantBe_[card.color][card.value]);
+    int result = 0;
+    for (Color k = RED; k <= BLUE; ++k) {
+        for (int v = 1; v <= 5; ++v) {
+            if (this->cantBe_[k][v]) continue;
+            if (k == card.color && v == card.value) {
+                return result;
+            }
+            result += 1;
+        }
+    }
+    assert(false);
+    return -1;
+}
+
+Card CardKnowledge::cardFromPossibilityIndex(int index) const
+{
+    for (Color k = RED; k <= BLUE; ++k) {
+        for (int v = 1; v <= 5; ++v) {
+            if (this->cantBe_[k][v]) continue;
+            if (index == 0) return Card(k, v);
+            index -= 1;
+        }
+    }
+    assert(false);
+    return Card(RED, 1);
+}
+
 void CardKnowledge::computePlayable() const
 {
     if (probabilityPlayable_ != -1.0f) return;
@@ -350,12 +380,155 @@ void CardKnowledge::update()
     }
 }
 
+MassiveVector::MassiveVector(const SmartBot *bot, int from)
+{
+    bot_ = bot;
+    from_ = from;
+    const int numPlayers = bot_->handKnowledge_.size();
+
+    int highest_uncertainty_any_player = 0;
+    for (int p = 0; p < numPlayers; ++p) {
+        if (p == from) continue;
+        const int numCards = bot_->handKnowledge_[p].size();
+        int lowest_uncertainty_this_player = 1000;
+        for (int i = 0; i < numCards; ++i) {
+            const CardKnowledge &knol = bot_->handKnowledge_[p][i];
+            assert(knol.possibilities() >= 1);
+            lowest_uncertainty_this_player = std::min(lowest_uncertainty_this_player, knol.possibilities());
+        }
+        assert(lowest_uncertainty_this_player >= 1);
+        highest_uncertainty_any_player = std::max(highest_uncertainty_any_player, lowest_uncertainty_this_player);
+    }
+    this->possibilities_ = highest_uncertainty_any_player;
+    assert(this->possibilities_ >= 1);
+    assert(this->possibilities_ <= 25);
+
+    for (int p = 0; p < numPlayers; ++p) {
+        if (p == from) {
+            card_indices_.push_back(-1);
+        } else {
+            const int numCards = bot_->handKnowledge_[p].size();
+            int best_fitness = 0;
+            int best_index = 0;
+            for (int i = 0; i < numCards; ++i) {
+                const CardKnowledge &knol = bot_->handKnowledge_[p][i];
+                const int uncertainty = knol.possibilities();
+                if (uncertainty <= highest_uncertainty_any_player) {
+                    if (uncertainty > best_fitness) {
+                        best_fitness = uncertainty;
+                        best_index = i;
+                    }
+                }
+            }
+            card_indices_.push_back(best_index);
+        }
+    }
+}
+
+int MassiveVector::sumExcludingOne(int from) const
+{
+    assert(bot_->me_ == from);
+    const Server &server = *bot_->server_;
+    const int numPlayers = card_indices_.size();
+    int sum = 0;
+    for (int p = 0; p < numPlayers; ++p) {
+        if (p == from) continue;
+        const int index = card_indices_[p];
+        const CardKnowledge &knol = bot_->handKnowledge_[p][index];
+        const Card card = server.handOfPlayer(p)[index];
+        int addend = knol.possibilityIndexOf(card);
+        assert(knol.cardFromPossibilityIndex(addend) == card);
+        sum += addend;
+    }
+    return modPossibilities(sum);
+}
+
+int MassiveVector::sumExcludingTwo(int from, int me) const
+{
+    assert(bot_->me_ == me);
+    assert(me != from);
+    const Server &server = *bot_->server_;
+    const int numPlayers = card_indices_.size();
+    int sum = 0;
+    for (int p = 0; p < numPlayers; ++p) {
+        if (p == from || p == me) continue;
+        const int index = card_indices_[p];
+        const CardKnowledge &knol = bot_->handKnowledge_[p][index];
+        const Card card = server.handOfPlayer(p)[index];
+        int addend = knol.possibilityIndexOf(card);
+        assert(knol.cardFromPossibilityIndex(addend) == card);
+        sum += addend;
+    }
+    return modPossibilities(sum);
+}
+
+int MassiveVector::hintToInt(const Hint &hint) const
+{
+    const int numPlayers = card_indices_.size();
+    int tens = ((hint.to - (from_ + 1)) + numPlayers) % numPlayers;
+    if (hint.color != -1) {
+        return 10*tens + hint.color;
+    } else {
+        return 10*tens + 4 + hint.value;
+    }
+}
+
+Hint MassiveVector::intToHint(int x) const
+{
+    assert(0 <= x && x < intToHintMax());
+    const int numPlayers = card_indices_.size();
+    Hint hint;
+    hint.to = (from_ + 1 + (x / 10)) % numPlayers;
+    assert(hint.to != from_);
+    const int ones = x % 10;
+    if (0 <= ones && ones < 5) {
+        hint.color = Hanabi::Color(ones);
+    } else {
+        hint.value = Hanabi::Value(ones - 4);
+    }
+    return hint;
+}
+
+int MassiveVector::intToHintMax() const
+{
+    const int numPlayers = card_indices_.size();
+    return (numPlayers - 1) * 10;
+}
+
 Hint::Hint()
 {
     fitness = -1;
     color = -1;
     value = -1;
     to = -1;
+}
+
+std::string Hint::toString() const
+{
+    char buf[100];
+    if (color != -1) {
+        snprintf(buf, sizeof buf, "to %d color %d", to, color);
+    } else {
+        snprintf(buf, sizeof buf, "to %d value %d", to, value);
+    }
+    return buf;
+}
+
+bool Hint::isLegal(const Hanabi::Server &server) const
+{
+    assert(to != -1);
+    std::vector<Card> hand = server.handOfPlayer(to);
+    if (color != -1) {
+        for (int i=0; i < hand.size(); ++i) {
+            if (hand[i].color == color) return true;
+        }
+    } else {
+        assert(value != -1);
+        for (int i=0; i < hand.size(); ++i) {
+            if (hand[i].value == value) return true;
+        }
+    }
+    return false;
 }
 
 void Hint::give(Server &server)
@@ -565,9 +738,11 @@ void SmartBot::pleaseObserveBeforeDiscard(const Hanabi::Server &server, int from
     server_ = &server;
     assert(server.whoAmI() == me_);
     Card card = server.activeCard();
-    bool massiveStrategy = this->shouldUseMassiveStrategy();
+    bool massiveStrategy = this->shouldUseMassiveStrategy(from);
 
-    if (!massiveStrategy) {
+    if (massiveStrategy) {
+        this->noMassiveHintWasGiven(server, from);
+    } else {
         this->noValuableWarningWasGiven(server, from);
     }
 
@@ -611,9 +786,11 @@ void SmartBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, i
     assert(server.whoAmI() == me_);
     Card card = server.activeCard();
     const bool success = this->isPlayable(card);
-    bool massiveStrategy = this->shouldUseMassiveStrategy();
+    bool massiveStrategy = this->shouldUseMassiveStrategy(from);
 
-    if (!massiveStrategy) {
+    if (massiveStrategy) {
+        this->noMassiveHintWasGiven(server, from);
+    } else {
         this->noValuableWarningWasGiven(server, from);
     }
 
@@ -639,11 +816,14 @@ void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
 {
     server_ = &server;
     assert(server.whoAmI() == me_);
-    bool massiveStrategy = this->shouldUseMassiveStrategy();
+    bool massiveStrategy = this->shouldUseMassiveStrategy(from);
     const int numCards = server.sizeOfHandOfPlayer(to);
 
     if (massiveStrategy) {
-        // TODO: interpret massive hint
+        Hint hint;
+        hint.to = to;
+        hint.color = color;
+        this->interpretMassiveHint(hint, from);
 
         for (int i=0; i < numCards; ++i) {
             CardKnowledge &knol = handKnowledge_[to][i];
@@ -685,11 +865,14 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
 {
     server_ = &server;
     assert(server.whoAmI() == me_);
-    bool massiveStrategy = this->shouldUseMassiveStrategy();
+    bool massiveStrategy = this->shouldUseMassiveStrategy(from);
     const int numCards = server.sizeOfHandOfPlayer(to);
 
     if (massiveStrategy) {
-        // TODO: interpret massive hint
+        Hint hint;
+        hint.to = to;
+        hint.value = value;
+        this->interpretMassiveHint(hint, from);
 
         for (int i=0; i< numCards; ++i) {
             CardKnowledge &knol = handKnowledge_[to][i];
@@ -1061,7 +1244,7 @@ void SmartBot::pleaseMakeMove(Server &server)
     assert(server.activePlayer() == me_);
     assert(UseMulligans || !server.mulligansUsed());
 
-    const bool massiveStrategy = shouldUseMassiveStrategy();
+    const bool massiveStrategy = shouldUseMassiveStrategy(me_);
 
     if (server.cardsRemainingInDeck() == 0) {
         if (maybePlayLowestPlayableCard(server)) return;
@@ -1101,12 +1284,63 @@ void SmartBot::pleaseMakeMove(Server &server)
     }
 }
 
-bool SmartBot::shouldUseMassiveStrategy() const
+bool SmartBot::shouldUseMassiveStrategy(int from) const
 {
-    return false;
+    if (server_->hintStonesRemaining() == 0 || server_->hintStonesUsed() == 0) return false;
+    MassiveVector mv(this, from);
+    if (mv.possibilities() == 1) return false;
+    return true;
 }
 
 bool SmartBot::maybeGiveMassiveHint(Server &server)
 {
+    const int from = me_;
+    MassiveVector mv(this, from);
+    int sum = mv.sumExcludingOne(from);
+    while (sum < mv.intToHintMax()) {
+        Hint hint = mv.intToHint(sum);
+        if (hint.isLegal(server)) {
+            hint.give(server);
+            return true;
+        }
+        sum += mv.possibilities();
+    }
     return false;
+}
+
+void SmartBot::interpretMassiveHint(const Hint &hint, int from)
+{
+    MassiveVector mv(this, from);
+    if (from != me_) {
+        const int index = mv.massiveIndexOfPlayer(me_);
+        assert(index != -1);
+        CardKnowledge &knol = handKnowledge_[me_][index];
+        const int sum_excluding_two = mv.sumExcludingTwo(from, me_);
+        const int sum_excluding_one = mv.hintToInt(hint);
+        assert(0 <= sum_excluding_one && sum_excluding_one < mv.intToHintMax());
+        Card my_card = knol.cardFromPossibilityIndex(
+            mv.modPossibilities(sum_excluding_one - sum_excluding_two)
+        );
+//        printf("Player %d is deducing that his own %d card is %s\n", me_, index, my_card.toString().c_str());
+        knol.setMustBe(my_card);
+    }
+    /* Everyone else will have performed the same logic and realized
+     * their own card as well. So every player's relevant card is now
+     * public knowledge.
+     */
+    const int numPlayers = handKnowledge_.size();
+    for (int p = 0; p < numPlayers; ++p) {
+        if (p == me_ || p == from) continue;
+        const int i = mv.massiveIndexOfPlayer(p);
+        CardKnowledge &knol = handKnowledge_[p][i];
+        Card actual_card = server_->handOfPlayer(p)[i];
+//        printf("Player %d is deducing that %d's %d card is %s\n", me_, p, i, actual_card.toString().c_str());
+        knol.setMustBe(actual_card);
+    }
+}
+
+void SmartBot::noMassiveHintWasGiven(const Hanabi::Server &server, int from)
+{
+    (void)server; (void)from;
+    // TODO
 }
