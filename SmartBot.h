@@ -95,6 +95,7 @@ public:
     int sumExcludingTwo(int from, int me) const;
     int modPossibilities(int x) const { return (x + 256*possibilities_) % possibilities_; }
     int possibilities() const { return possibilities_; }
+    double entropy() const { return entropy_; }
     Hint intToHint(int x) const;
     int intToHintMax() const;
     int hintToInt(const Hint &hint) const;
@@ -103,6 +104,7 @@ private:
     std::vector<int> card_indices_;
     int8_t from_;
     int8_t possibilities_;
+    double entropy_;
 };
 
 class SmartBot : public Hanabi::Bot {

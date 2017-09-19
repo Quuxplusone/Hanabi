@@ -423,6 +423,14 @@ MassiveVector::MassiveVector(const SmartBot *bot, int from)
             card_indices_.push_back(best_index);
         }
     }
+
+    double entropy = 0;
+    for (int p = 0; p < numPlayers; ++p) {
+        if (p == from_) continue;
+        const CardKnowledge &knol = bot_->handKnowledge_[p][card_indices_[p]];
+        entropy += log2(knol.possibilities());
+    }
+    entropy_ = entropy;
 }
 
 int MassiveVector::sumExcludingOne(int from) const
@@ -1288,8 +1296,9 @@ bool SmartBot::shouldUseMassiveStrategy(int from) const
 {
     if (server_->hintStonesRemaining() == 0 || server_->hintStonesUsed() == 0) return false;
     MassiveVector mv(this, from);
-    if (mv.possibilities() == 1) return false;
-    return true;
+    const int numPlayers = handKnowledge_.size();
+    static const double wantedEntropy[6] = { 99, 99, 99, 7.5, 9.5, 10.5 };
+    return mv.entropy() >= wantedEntropy[std::min(numPlayers, 5)];
 }
 
 bool SmartBot::maybeGiveMassiveHint(Server &server)
