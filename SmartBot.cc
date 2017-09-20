@@ -1360,11 +1360,14 @@ void SmartBot::pleaseMakeMove(Server &server)
     }
 }
 
-extern double TesterA;
 bool SmartBot::shouldUseMassiveStrategy(int from) const
 {
     if (server_->hintStonesRemaining() == 0 || server_->hintStonesUsed() == 0) return false;
     if (server_->cardsRemainingInDeck() == 0) return false;
+    // Don't require that Bob give a massive hint, if he's got a known playable card.
+    for (int i=0; i < handKnowledge_[from].size(); ++i) {
+        if (handKnowledge_[from][i].playable() == YES) return false;
+    }
     MassiveVector mv(this, from);
     const int numPlayers = handKnowledge_.size();
     static const double wantedEntropy[6] = { 99, 99, 99, 7.5, 9.5, 10.5 };
