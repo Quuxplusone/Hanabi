@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
+#include <set>
 #include <sstream>
 #include "Hanabi.h"
 #include "SmartBot.h"
@@ -165,6 +166,18 @@ void CardKnowledge::setCannotBe(Hanabi::Value value)
     for (Color k = RED; k <= BLUE; ++k) {
         cantBe_[k][value] = true;
     }
+    possibilities_ = -1;
+    if (color_ == -1) color_ = -2;
+    if (value_ == -1) value_ = -2;
+    if (playable_ == MAYBE) probabilityPlayable_ = -1.0;
+    if (valuable_ == MAYBE) probabilityValuable_ = -1.0;
+    if (worthless_ == MAYBE) probabilityWorthless_ = -1.0;
+}
+
+void CardKnowledge::setCannotBe(Hanabi::Card card)
+{
+    if (cantBe_[card.color][card.value]) return;
+    cantBe_[card.color][card.value] = true;
     possibilities_ = -1;
     if (color_ == -1) color_ = -2;
     if (value_ == -1) value_ = -2;
@@ -372,11 +385,31 @@ void CardKnowledge::update()
         }
         if (recompute) {
             possibilities_ = -1;
-            color_ = -2;
-            value_ = -2;
+            if (color_ == -1) color_ = -2;
+            if (value_ == -1) value_ = -2;
             playable_ = valuable_ = worthless_ = MAYBE;
             probabilityPlayable_ = probabilityValuable_ = probabilityWorthless_ = -1.0f;
         }
+    }
+}
+
+void CardKnowledge::operator+=(const CardKnowledge& rhs)
+{
+    bool recompute = false;
+    for (Color k = RED; k <= BLUE; ++k) {
+        for (int v = 1; v <= 5; ++v) {
+            if (this->cantBe_[k][v]) continue;
+            if (!rhs.cantBe_[k][v]) continue;
+            this->cantBe_[k][v] = true;
+            recompute = true;
+        }
+    }
+    if (recompute) {
+        possibilities_ = -1;
+        if (color_ == -1) color_ = -2;
+        if (value_ == -1) value_ = -2;
+        playable_ = valuable_ = worthless_ = MAYBE;
+        probabilityPlayable_ = probabilityValuable_ = probabilityWorthless_ = -1.0f;
     }
 }
 
@@ -539,6 +572,19 @@ bool Hint::isLegal(const Hanabi::Server &server) const
     return false;
 }
 
+bool SmartBot::hintIsDefinitelyLegal(Hint hint) const
+{
+    if (hint.to != me_) {
+        return hint.isLegal(*server_);
+    } else {
+        for (int i=0; i < secretKnowledge_.size(); ++i) {
+            if (hint.color != -1 && secretKnowledge_[i].color() == hint.color) return true;
+            if (hint.value != -1 && secretKnowledge_[i].value() == hint.value) return true;
+        }
+    }
+    return false;
+}
+
 void Hint::give(Server &server)
 {
     assert(to != -1);
@@ -558,6 +604,7 @@ SmartBot::SmartBot(int index, int numPlayers, int handSize)
     for (int i=0; i < numPlayers; ++i) {
         handKnowledge_[i].resize(handSize, CardKnowledge(this));
     }
+    secretKnowledge_.resize(handSize, CardKnowledge(this));
     std::memset(playedCount_, '\0', sizeof playedCount_);
 }
 
@@ -610,11 +657,21 @@ bool CardKnowledge::couldBeValuableWithValue(int value) const
 void SmartBot::invalidateKnol(int player_index, int card_index)
 {
     /* The other cards are shifted down and a new one drawn at the end. */
-    std::vector<CardKnowledge> &vec = handKnowledge_[player_index];
-    for (int i = card_index; i+1 < vec.size(); ++i) {
-        vec[i] = vec[i+1];
+    if (true) {
+        std::vector<CardKnowledge> &vec = handKnowledge_[player_index];
+        for (int i = card_index; i+1 < vec.size(); ++i) {
+            vec[i] = vec[i+1];
+        }
+        vec.back() = CardKnowledge(this);
     }
-    vec.back() = CardKnowledge(this);
+
+    if (player_index == me_) {
+        std::vector<CardKnowledge> &vec = secretKnowledge_;
+        for (int i = card_index; i+1 < vec.size(); ++i) {
+            vec[i] = vec[i+1];
+        }
+        vec.back() = CardKnowledge(this);
+    }
 }
 
 void SmartBot::seePublicCard(const Card &card)
@@ -713,6 +770,7 @@ void SmartBot::pleaseObserveBeforeMove(const Server &server)
     assert(server.whoAmI() == me_);
 
     myHandSize_ = server.sizeOfHandOfPlayer(me_);
+    secretKnowledge_.resize(myHandSize_, CardKnowledge(this));
 
     for (int p=0; p < handKnowledge_.size(); ++p) {
         const int numCards = server.sizeOfHandOfPlayer(p);
@@ -734,11 +792,18 @@ void SmartBot::pleaseObserveBeforeMove(const Server &server)
 
     this->updateEyesightCount(server);
 
+    for (int i=0; i < myHandSize_; ++i) {
+        secretKnowledge_[i] += handKnowledge_[me_][i];
+        secretKnowledge_[i].update<true>();
+    }
+
+#ifndef NDEBUG
     for (Color k = RED; k <= BLUE; ++k) {
         for (int v = 1; v <= 5; ++v) {
             assert(this->locatedCount_[k][v] <= this->eyesightCount_[k][v]);
         }
     }
+#endif
 }
 
 void SmartBot::pleaseObserveBeforeDiscard(const Hanabi::Server &server, int from, int card_index)
@@ -749,7 +814,7 @@ void SmartBot::pleaseObserveBeforeDiscard(const Hanabi::Server &server, int from
     bool massiveStrategy = this->shouldUseMassiveStrategy(from);
 
     if (massiveStrategy) {
-        this->noMassiveHintWasGiven(server, from);
+        this->noMassiveHintWasGiven(from);
     } else {
         this->noValuableWarningWasGiven(server, from);
     }
@@ -797,7 +862,7 @@ void SmartBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, i
     bool massiveStrategy = this->shouldUseMassiveStrategy(from);
 
     if (massiveStrategy) {
-        this->noMassiveHintWasGiven(server, from);
+        this->noMassiveHintWasGiven(from);
     } else {
         this->noValuableWarningWasGiven(server, from);
     }
@@ -956,6 +1021,7 @@ bool SmartBot::maybePlayLowestPlayableCard(Server &server)
          * Otherwise, prefer lower-valued cards over higher-valued ones.
          */
         CardKnowledge eyeKnol = handKnowledge_[me_][i];
+        eyeKnol += secretKnowledge_[i];
         eyeKnol.update<true>();
         if (eyeKnol.playable() != YES) continue;
 
@@ -996,6 +1062,7 @@ bool SmartBot::maybeDiscardWorthlessCard(Server &server)
          */
         if (handKnowledge_[me_][i].worthless() == MAYBE) {
             CardKnowledge eyeKnol = handKnowledge_[me_][i];
+            eyeKnol += secretKnowledge_[i];
             eyeKnol.update<true>();
             if (eyeKnol.worthless() != YES) continue;
         }
@@ -1216,6 +1283,7 @@ bool SmartBot::maybePlayMysteryCard(Server &server)
         int best_index = -1;
         for (int i = handKnowledge_[me_].size() - 1; i >= 0; --i) {
             CardKnowledge eyeKnol = handKnowledge_[me_][i];
+            eyeKnol += secretKnowledge_[i];
             eyeKnol.update<true>();
             assert(eyeKnol.playable() != YES);  /* or we would have played it already */
             if (eyeKnol.playable() == MAYBE) {
@@ -1292,13 +1360,16 @@ void SmartBot::pleaseMakeMove(Server &server)
     }
 }
 
+extern double TesterA;
 bool SmartBot::shouldUseMassiveStrategy(int from) const
 {
     if (server_->hintStonesRemaining() == 0 || server_->hintStonesUsed() == 0) return false;
+    if (server_->cardsRemainingInDeck() == 0) return false;
     MassiveVector mv(this, from);
     const int numPlayers = handKnowledge_.size();
     static const double wantedEntropy[6] = { 99, 99, 99, 7.5, 9.5, 10.5 };
-    return mv.entropy() >= wantedEntropy[std::min(numPlayers, 5)];
+    const double wanted = wantedEntropy[std::min(numPlayers, 5)];
+    return mv.entropy() >= wanted;
 }
 
 bool SmartBot::maybeGiveMassiveHint(Server &server)
@@ -1348,8 +1419,34 @@ void SmartBot::interpretMassiveHint(const Hint &hint, int from)
     }
 }
 
-void SmartBot::noMassiveHintWasGiven(const Hanabi::Server &server, int from)
+void SmartBot::noMassiveHintWasGiven(int from)
 {
-    (void)server; (void)from;
-    // TODO
+    if (from == me_) return;
+    MassiveVector mv(this, from);
+    std::set<int> definitely_hintable_sums;
+    for (int possible_hint = 0; possible_hint < mv.intToHintMax(); ++possible_hint) {
+        Hint h = mv.intToHint(possible_hint);
+        if (this->hintIsDefinitelyLegal(h)) {
+            definitely_hintable_sums.insert(mv.modPossibilities(possible_hint));
+        }
+    }
+    // Now we have a list of all the sums (0 <= sum && sum < mv.possibilities())
+    // where, IF the sum had come out to that, player "from" would have given a hint.
+    // Since player "from" DIDN'T give a hint, we can conclude that that WASN'T the sum.
+    int sum_excluding_two = mv.sumExcludingTwo(from, me_);
+    int i = mv.massiveIndexOfPlayer(me_);
+    CardKnowledge &knol = handKnowledge_[me_][i];
+    CardKnowledge &secretKnol = secretKnowledge_[i];
+    for (int sum_excluding_one : definitely_hintable_sums) {
+        int possibilityIndex = mv.modPossibilities(sum_excluding_one - sum_excluding_two);
+        if (possibilityIndex < knol.possibilities()) {
+            // If it'd been this card, the corresponding hint would have been legal.
+            Card card = knol.cardFromPossibilityIndex(possibilityIndex);
+//            fprintf(stderr, "Player %d is deducing from the lack of hint that his %d card can't be %s",
+//                   me_, i, card.toString().c_str());
+//            fprintf(stderr, " (because if it were, player %d should have seen sum %d and hinted %s)\n",
+//                    from, sum_excluding_one, mv.intToHint(sum_excluding_one).toString().c_str());
+            secretKnol.setCannotBe(card);
+        }
+    }
 }

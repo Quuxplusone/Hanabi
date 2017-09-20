@@ -25,6 +25,7 @@ public:
     void setMustBe(Hanabi::Card card);
     void setCannotBe(Hanabi::Color color);
     void setCannotBe(Hanabi::Value value);
+    void setCannotBe(Hanabi::Card card);
     void setIsPlayable(bool knownPlayable);
     void setIsValuable(bool knownValuable);
     void setIsWorthless(bool knownWorthless);
@@ -33,6 +34,8 @@ public:
 
     template<bool useMyEyesight>
     void update();
+
+    void operator+=(const CardKnowledge& rhs);
 
     bool known() const { computeIdentity(); return color_ != -1 && value_ != -1; }
     int color() const { computeIdentity(); return color_; }
@@ -118,6 +121,8 @@ class SmartBot : public Hanabi::Bot {
 
     /* What does each player know about his own hand? */
     std::vector<std::vector<CardKnowledge> > handKnowledge_;
+    /* What do I personally know about my own hand? */
+    std::vector<CardKnowledge> secretKnowledge_;
     /* What cards have been played so far? */
     int playedCount_[Hanabi::NUMCOLORS][5+1];
     /* What cards in players' hands are definitely identified?
@@ -156,7 +161,8 @@ class SmartBot : public Hanabi::Bot {
     bool shouldUseMassiveStrategy(int from) const;
     bool maybeGiveMassiveHint(Hanabi::Server &server);
     void interpretMassiveHint(const Hint &hint, int from);
-    void noMassiveHintWasGiven(const Hanabi::Server &server, int from);
+    void noMassiveHintWasGiven(int from);
+    bool hintIsDefinitelyLegal(Hint hint) const;
 
   public:
     SmartBot(int index, int numPlayers, int handSize);
