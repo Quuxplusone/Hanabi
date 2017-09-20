@@ -1108,19 +1108,26 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
         bool seenPlayable = false;
         for (int c=partners_hand.size()-1; c >= 0; --c) {
             const CardKnowledge &knol = handKnowledge_[partner][c];
-            if (partners_hand[c].color != color) continue;
-            if (knol.playable() == MAYBE) {
-                if (is_really_playable[c]) {
-                    seenPlayable = true;
-                    playability_content = 1;
-                } else {
-                    if (!seenPlayable && !knol.cannotBe(Card(color, playableValue))) {
-                        misinformative = true;
-                        break;
+            if (partners_hand[c].color != color) {
+                CardKnowledge newKnol = knol;
+                newKnol.setCannotBe(color);
+                color_content += (knol.possibilities() - newKnol.possibilities());
+            } else {
+                if (knol.playable() == MAYBE) {
+                    if (is_really_playable[c]) {
+                        seenPlayable = true;
+                        playability_content = 1;
+                    } else {
+                        if (!seenPlayable && !knol.cannotBe(Card(color, playableValue))) {
+                            misinformative = true;
+                            break;
+                        }
                     }
                 }
+                CardKnowledge newKnol = knol;
+                newKnol.setMustBe(color);
+                color_content += (knol.possibilities() - newKnol.possibilities());
             }
-            color_content += (knol.color() == -1);
         }
         if (misinformative) continue;
         const int fitness = (playability_content == 0) ? 0 : (playability_content + color_content);
@@ -1150,19 +1157,26 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
         bool seenPlayable = false;
         for (int c=partners_hand.size()-1; c >= 0; --c) {
             const CardKnowledge &knol = handKnowledge_[partner][c];
-            if (partners_hand[c].value != value) continue;
-            if (knol.playable() == MAYBE) {
-                if (is_really_playable[c]) {
-                    seenPlayable = true;
-                    playability_content = 1;
-                } else {
-                    if (!seenPlayable && knol.couldBePlayableWithValue(value)) {
-                        misinformative = true;
-                        break;
+            if (partners_hand[c].value != value) {
+                CardKnowledge newKnol = knol;
+                newKnol.setCannotBe(Value(value));
+                value_content += (knol.possibilities() - newKnol.possibilities());
+            } else {
+                if (knol.playable() == MAYBE) {
+                    if (is_really_playable[c]) {
+                        seenPlayable = true;
+                        playability_content = 1;
+                    } else {
+                        if (!seenPlayable && knol.couldBePlayableWithValue(value)) {
+                            misinformative = true;
+                            break;
+                        }
                     }
                 }
+                CardKnowledge newKnol = knol;
+                newKnol.setMustBe(Value(value));
+                value_content += (knol.possibilities() - newKnol.possibilities());
             }
-            value_content += (knol.value() == -1);
         }
         if (misinformative) continue;
         const int fitness = (playability_content == 0) ? 0 : (playability_content + value_content);
