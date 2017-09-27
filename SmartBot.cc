@@ -646,27 +646,38 @@ void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
      * this means that the newest (possible) of the named cards is
      * currently playable. */
 
-    const int playerExpectingWarning = (from + 1) % handKnowledge_.size();
-    if (to != playerExpectingWarning) {
-        this->noValuableWarningWasGiven(server, from);
-    }
-
     const int numCards = server.sizeOfHandOfPlayer(to);
 
-    bool seenPlayable = false;
+    bool identifiedPlayableCard = false;
+    int inferredPlayableIndex = -1;
     for (int i=numCards-1; i >= 0; --i) {
         CardKnowledge &knol = handKnowledge_[to][i];
+        const bool wasMaybePlayable = (knol.playable() == MAYBE);
         if (vector_contains(card_indices, i)) {
-            const bool wasMaybePlayable = (knol.playable() == MAYBE);
             knol.setMustBe(color);
-            const bool isntUnplayable = (knol.playable() != NO);
-            if (wasMaybePlayable && isntUnplayable && !seenPlayable) {
-                seenPlayable = true;
-                knol.setIsPlayable(true);
+            if (wasMaybePlayable) {
+                if (knol.playable() == YES) {
+                    identifiedPlayableCard = true;
+                } else if (knol.playable() == MAYBE) {
+                    if (inferredPlayableIndex == -1) inferredPlayableIndex = i;
+                }
             }
         } else {
             knol.setCannotBe(color);
+            if (wasMaybePlayable) {
+                if (knol.playable() == YES) {
+                    identifiedPlayableCard = true;
+                }
+            }
         }
+    }
+    if (!identifiedPlayableCard && inferredPlayableIndex >= 0) {
+        handKnowledge_[to][inferredPlayableIndex].setIsPlayable(true);
+    }
+
+    const int playerExpectingWarning = (from + 1) % handKnowledge_.size();
+    if (to != playerExpectingWarning) {
+        this->noValuableWarningWasGiven(server, from);
     }
 }
 
@@ -698,26 +709,37 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
         handKnowledge_[to][discardIndex].setIsValuable(true);
     }
 
-    if (to != playerExpectingWarning) {
-        this->noValuableWarningWasGiven(server, from);
-    }
-
     const int numCards = server.sizeOfHandOfPlayer(to);
 
-    bool seenPlayable = false;
+    bool identifiedPlayableCard = false;
+    int inferredPlayableIndex = -1;
     for (int i=numCards-1; i >= 0; --i) {
         CardKnowledge &knol = handKnowledge_[to][i];
+        const bool wasMaybePlayable = (knol.playable() == MAYBE);
         if (vector_contains(card_indices, i)) {
-            const bool wasMaybePlayable = (knol.playable() == MAYBE);
             knol.setMustBe(value);
-            const bool isntUnplayable = (knol.playable() != NO);
-            if (!isWarning && !isHintStoneReclaim && wasMaybePlayable && isntUnplayable && !seenPlayable) {
-                seenPlayable = true;
-                knol.setIsPlayable(true);
+            if (wasMaybePlayable) {
+                if (knol.playable() == YES) {
+                    identifiedPlayableCard = true;
+                } else if (knol.playable() == MAYBE) {
+                    if (inferredPlayableIndex == -1) inferredPlayableIndex = i;
+                }
             }
         } else {
             knol.setCannotBe(value);
+            if (wasMaybePlayable) {
+                if (knol.playable() == YES) {
+                    identifiedPlayableCard = true;
+                }
+            }
         }
+    }
+    if (!isWarning && !isHintStoneReclaim && !identifiedPlayableCard && inferredPlayableIndex >= 0) {
+        handKnowledge_[to][inferredPlayableIndex].setIsPlayable(true);
+    }
+    if (to != playerExpectingWarning) {
+        assert(!isWarning);
+        this->noValuableWarningWasGiven(server, from);
     }
 }
 
@@ -798,6 +820,71 @@ bool SmartBot::maybeDiscardWorthlessCard(Server &server)
     return false;
 }
 
+int reduction_in_entropy(const std::vector<CardKnowledge>& oldKnols, const std::vector<CardKnowledge>& newKnols)
+{
+    int result = 0;
+    for (int i=0; i < oldKnols.size(); ++i) {
+        result += (oldKnols[i].possibilities() - newKnols[i].possibilities());
+    }
+    return result;
+}
+
+template<class F>
+Hint SmartBot::bestHintForPlayerGivenConstraint(int to, F&& is_okay) const
+{
+    std::vector<Card> partners_hand = server_->handOfPlayer(to);
+    bool colors[BLUE+1] = {};
+    bool values[5+1] = {};
+    for (const Card &card : partners_hand) {
+        colors[card.color] = true;
+        values[card.value] = true;
+    }
+    const auto& oldKnols = handKnowledge_[to];
+    Hint best;
+    best.to = to;
+    for (Color k = RED; k <= BLUE; ++k) {
+        if (!colors[k]) continue;
+        Hint hint;
+        hint.to = to;
+        hint.color = k;
+        auto newKnols = oldKnols;
+        for (int c = 0; c < partners_hand.size(); ++c) {
+            if (partners_hand[c].color == k) {
+                newKnols[c].setMustBe(Color(k));
+            } else {
+                newKnols[c].setCannotBe(Color(k));
+            }
+        }
+        if (is_okay(hint, oldKnols, newKnols)) {
+            hint.fitness = reduction_in_entropy(oldKnols, newKnols);
+            if (hint.fitness > best.fitness) {
+                best = hint;
+            }
+        }
+    }
+    for (int v = 1; v <= 5; ++v) {
+        if (!values[v]) continue;
+        Hint hint;
+        hint.to = to;
+        hint.value = v;
+        auto newKnols = oldKnols;
+        for (int c = 0; c < partners_hand.size(); ++c) {
+            if (partners_hand[c].value == v) {
+                newKnols[c].setMustBe(Value(v));
+            } else {
+                newKnols[c].setCannotBe(Value(v));
+            }
+        }
+        if (is_okay(hint, oldKnols, newKnols)) {
+            hint.fitness = reduction_in_entropy(oldKnols, newKnols);
+            if (hint.fitness > best.fitness) {
+                best = hint;
+            }
+        }
+    }
+    return best;
+}
+
 Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
 {
     assert(partner != me_);
@@ -807,44 +894,6 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
     for (int c=0; c < partners_hand.size(); ++c) {
         is_really_playable[c] =
             server.pileOf(partners_hand[c].color).nextValueIs(partners_hand[c].value);
-    }
-
-    Hint best_so_far;
-    best_so_far.to = partner;
-
-    /* Can we construct a color hint that gives our partner information
-     * about unknown-playable cards, without also including any
-     * unplayable cards? */
-    for (Color color = RED; color <= BLUE; ++color) {
-        const int playableValue = server.pileOf(color).size() + 1;
-        if (playableValue > 5) continue;  /* this pile is complete */
-        int playability_content = 0;
-        int color_content = 0;
-        bool misinformative = false;
-        bool seenPlayable = false;
-        for (int c=partners_hand.size()-1; c >= 0; --c) {
-            const CardKnowledge &knol = handKnowledge_[partner][c];
-            if (partners_hand[c].color != color) continue;
-            if (knol.playable() == MAYBE) {
-                if (is_really_playable[c]) {
-                    seenPlayable = true;
-                    playability_content = 1;
-                } else {
-                    if (!seenPlayable && !knol.cannotBe(Card(color, playableValue))) {
-                        misinformative = true;
-                        break;
-                    }
-                }
-            }
-            color_content += (knol.color() == -1);
-        }
-        if (misinformative) continue;
-        const int fitness = (playability_content == 0) ? 0 : (playability_content + color_content);
-        if (fitness > best_so_far.fitness) {
-            best_so_far.fitness = fitness;
-            best_so_far.color = color;
-            best_so_far.value = -1;
-        }
     }
 
     /* Avoid giving hints that could be misinterpreted as warnings. */
@@ -858,38 +907,38 @@ Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
         }
     }
 
-    for (int value = 1; value <= 5; ++value) {
-        if (value == valueToAvoid) continue;
-        int playability_content = 0;
-        int value_content = 0;
-        bool misinformative = false;
-        bool seenPlayable = false;
-        for (int c=partners_hand.size()-1; c >= 0; --c) {
-            const CardKnowledge &knol = handKnowledge_[partner][c];
-            if (partners_hand[c].value != value) continue;
-            if (knol.playable() == MAYBE) {
-                if (is_really_playable[c]) {
-                    seenPlayable = true;
-                    playability_content = 1;
-                } else {
-                    if (!seenPlayable && knol.couldBePlayableWithValue(value)) {
-                        misinformative = true;
-                        break;
-                    }
+    return bestHintForPlayerGivenConstraint(partner, [&](Hint hint, const std::vector<CardKnowledge>& oldKnols, const std::vector<CardKnowledge>& newKnols) {
+        if (hint.value != -1 && hint.value == valueToAvoid) {
+            // This hint would be misinterpreted as a valuable warning.
+            return false;
+        }
+        // If this hint identified a new playable card, then it is a good hint.
+        // If this hint did not unambiguously identify a new playable card,
+        // but the newest card it touched *is* playable in reality, then it is
+        // a good hint.
+        // If this hint did not unambiguously identify a new playable card
+        // and the newest card it touched is *not* playable in reality, then
+        // it is misleading and MUST not be given.
+        bool reveals_a_playable_card = false;
+        trivalue is_misleading = MAYBE;
+        for (int c = partners_hand.size()-1; c >= 0; --c) {
+            if (oldKnols[c].playable() != MAYBE) continue;
+            if (newKnols[c].playable() == YES) {
+                reveals_a_playable_card = true;
+            } else if (newKnols[c].playable() == MAYBE && hint.includes(partners_hand[c])) {
+                if (is_misleading == MAYBE) {
+                    is_misleading = (is_really_playable[c] ? NO : YES);
                 }
             }
-            value_content += (knol.value() == -1);
         }
-        if (misinformative) continue;
-        const int fitness = (playability_content == 0) ? 0 : (playability_content + value_content);
-        if (fitness > best_so_far.fitness) {
-            best_so_far.fitness = fitness;
-            best_so_far.color = -1;
-            best_so_far.value = value;
+        if (reveals_a_playable_card || (is_misleading == NO)) {
+            // This is a good hint that will reveal a playable card.
+            return true;
+        } else {
+            // This is a misleading or worthless hint.
+            return false;
         }
-    }
-
-    return best_so_far;
+    });
 }
 
 bool SmartBot::maybeGiveValuableWarning(Server &server)
