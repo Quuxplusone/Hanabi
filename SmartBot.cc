@@ -358,6 +358,14 @@ Hint::Hint()
     to = -1;
 }
 
+bool Hint::includes(Card card) const
+{
+    if (this->color != -1) {
+        return (this->color == card.color);
+    }
+    return (this->value == card.value);
+}
+
 void Hint::give(Server &server)
 {
     assert(to != -1);

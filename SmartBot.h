@@ -80,6 +80,7 @@ struct Hint {
     int value;
 
     Hint();
+    bool includes(Hanabi::Card) const;
     void give(Hanabi::Server &);
 };
 
