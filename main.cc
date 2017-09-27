@@ -108,8 +108,8 @@ static void usage(const char *why)
               << "        --seed <0..>\n"
               << "        --deck < input.deck (piped onto stdin)\n"
               << "        --players <2..10>\n"
-              << "        --games <1000..2000000000>\n"
-              << "        --every <1000..2000000000>\n";
+              << "        --games <1..2000000000>\n"
+              << "        --every <1..2000000000>\n";
     std::exit(EXIT_FAILURE);
 }
 
@@ -172,13 +172,11 @@ int main(int argc, char **argv)
             if (i+1 >= argc) usage("Option --games requires an argument.");
             numberOfGames = atoi(argv[i+1]);
             if (numberOfGames <= 0) usage("Invalid number of games.");
-            if ((numberOfGames % 1000) != 0) usage("Number of games must be divisible by 1000.");
             ++i;
         } else if (argv[i] == std::string("--every")) {
             if (i+1 >= argc) usage("Option --every requires an argument.");
             every = atoi(argv[i+1]);
             if (every <= 0) usage("Invalid number for option --every.");
-            if ((every % 1000) != 0) usage("Number for option --every must be divisible by 1000.");
             ++i;
         } else if (argv[i] == std::string("--seed")) {
             if (i+1 >= argc) usage("Option --seed requires an argument.");
