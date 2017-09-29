@@ -107,7 +107,7 @@ class SmartBot : public Hanabi::Bot {
     bool isValuable(Hanabi::Card card) const;
     bool isWorthless(Hanabi::Card card) const;
 
-    void updateEyesightCount(const Hanabi::Server &server);
+    void updateEyesightCount();
     bool updateLocatedCount();
     void invalidateKnol(int player_index, int card_index);
     void seePublicCard(const Hanabi::Card &played_card);
@@ -117,9 +117,9 @@ class SmartBot : public Hanabi::Bot {
      * returns the index of his oldest not-known-valuable card. */
     int nextDiscardIndex(int player) const;
 
-    void noValuableWarningWasGiven(const Hanabi::Server &server, int from);
+    void noValuableWarningWasGiven(int from);
 
-    Hint bestHintForPlayer(const Hanabi::Server &server, int to) const;
+    Hint bestHintForPlayer(int to) const;
 
     template<class F>
     Hint bestHintForPlayerGivenConstraint(int to, F&& is_okay) const;

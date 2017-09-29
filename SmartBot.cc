@@ -451,7 +451,7 @@ void SmartBot::seePublicCard(const Card &card)
     assert(1 <= entry && entry <= card.count());
 }
 
-void SmartBot::updateEyesightCount(const Server &server)
+void SmartBot::updateEyesightCount()
 {
     std::memset(this->eyesightCount_, '\0', sizeof this->eyesightCount_);
 
@@ -465,7 +465,7 @@ void SmartBot::updateEyesightCount(const Server &server)
                 }
             }
         } else {
-            const std::vector<Card> hand = server.handOfPlayer(p);
+            const std::vector<Card> hand = server_->handOfPlayer(p);
             for (int i=0; i < hand.size(); ++i) {
                 const Card &card = hand[i];
                 this->eyesightCount_[card.color][card.value] += 1;
@@ -515,7 +515,7 @@ int SmartBot::nextDiscardIndex(int to) const
     return best_index;
 }
 
-void SmartBot::noValuableWarningWasGiven(const Hanabi::Server &server, int from)
+void SmartBot::noValuableWarningWasGiven(int from)
 {
     /* Something just happened that wasn't a warning. If what happened
      * wasn't a hint to the guy expecting a warning, then he can safely
@@ -523,8 +523,8 @@ void SmartBot::noValuableWarningWasGiven(const Hanabi::Server &server, int from)
 
     /* The rules are different when there are no cards left to draw,
      * or when valuable-warning hints can't be given. */
-    if (server.cardsRemainingInDeck() == 0) return;
-    if (server.hintStonesRemaining() == 0) return;
+    if (server_->cardsRemainingInDeck() == 0) return;
+    if (server_->hintStonesRemaining() == 0) return;
 
     const int playerExpectingWarning = (from + 1) % handKnowledge_.size();
     const int discardIndex = this->nextDiscardIndex(playerExpectingWarning);
@@ -559,7 +559,7 @@ void SmartBot::pleaseObserveBeforeMove(const Server &server)
         }
     } while (this->updateLocatedCount());
 
-    this->updateEyesightCount(server);
+    this->updateEyesightCount();
 
     for (Color k = RED; k <= BLUE; ++k) {
         for (int v = 1; v <= 5; ++v) {
@@ -574,7 +574,7 @@ void SmartBot::pleaseObserveBeforeDiscard(const Hanabi::Server &server, int from
     assert(server.whoAmI() == me_);
     Card card = server.activeCard();
 
-    this->noValuableWarningWasGiven(server, from);
+    this->noValuableWarningWasGiven(from);
 
     const CardKnowledge& knol = handKnowledge_[from][card_index];
     if (knol.known() && knol.playable() == YES) {
@@ -617,7 +617,7 @@ void SmartBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, i
     Card card = server.activeCard();
     const bool success = this->isPlayable(card);
 
-    this->noValuableWarningWasGiven(server, from);
+    this->noValuableWarningWasGiven(from);
 
 #ifndef NDEBUG
     assert(handKnowledge_[from][card_index].worthless() != YES);
@@ -677,7 +677,7 @@ void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
 
     const int playerExpectingWarning = (from + 1) % handKnowledge_.size();
     if (to != playerExpectingWarning) {
-        this->noValuableWarningWasGiven(server, from);
+        this->noValuableWarningWasGiven(from);
     }
 }
 
@@ -739,7 +739,7 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
     }
     if (to != playerExpectingWarning) {
         assert(!isWarning);
-        this->noValuableWarningWasGiven(server, from);
+        this->noValuableWarningWasGiven(from);
     }
 }
 
@@ -885,15 +885,15 @@ Hint SmartBot::bestHintForPlayerGivenConstraint(int to, F&& is_okay) const
     return best;
 }
 
-Hint SmartBot::bestHintForPlayer(const Server &server, int partner) const
+Hint SmartBot::bestHintForPlayer(int partner) const
 {
     assert(partner != me_);
-    const std::vector<Card> partners_hand = server.handOfPlayer(partner);
+    const std::vector<Card> partners_hand = server_->handOfPlayer(partner);
 
     bool is_really_playable[5];
     for (int c=0; c < partners_hand.size(); ++c) {
         is_really_playable[c] =
-            server.pileOf(partners_hand[c].color).nextValueIs(partners_hand[c].value);
+            server_->pileOf(partners_hand[c].color).nextValueIs(partners_hand[c].value);
     }
 
     /* Avoid giving hints that could be misinterpreted as warnings. */
@@ -964,7 +964,7 @@ bool SmartBot::maybeGiveValuableWarning(Server &server)
     assert(handKnowledge_[player_to_warn][discardIndex].valuable() != YES);
     assert(handKnowledge_[player_to_warn][discardIndex].worthless() != YES);
 
-    Hint bestHint = bestHintForPlayer(server, player_to_warn);
+    Hint bestHint = bestHintForPlayer(player_to_warn);
     if (bestHint.fitness > 0) {
         /* Excellent; we found a hint that will cause him to play a card
          * instead of discarding. */
@@ -1020,7 +1020,7 @@ bool SmartBot::maybeGiveHelpfulHint(Server &server)
     Hint bestHint;
     for (int i = 1; i < numPlayers; ++i) {
         const int partner = (me_ + i) % numPlayers;
-        Hint candidate = bestHintForPlayer(server, partner);
+        Hint candidate = bestHintForPlayer(partner);
         if (candidate.fitness > bestHint.fitness) {
             bestHint = candidate;
         }
