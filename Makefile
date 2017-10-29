@@ -1,9 +1,9 @@
 CXXFLAGS += -std=c++11
-CXXFLAGS += -W -Wall -pedantic -Wno-sign-compare
+CXXFLAGS += -W -Wall -Wextra -pedantic -Wno-sign-compare
 CXXFLAGS += ${EXTRA_CXXFLAGS}
 
 ifeq ($(FAST),1)
-  CXXFLAGS += -O3 -DNDEBUG -Wno-unused-parameter -Wno-unused-variable
+  CXXFLAGS += -O3 -DNDEBUG -flto -Wno-unused-parameter -Wno-unused-variable
 endif
 
 ifeq ($(OPENMP),1)
@@ -29,7 +29,7 @@ exp_%.o: experiment-harness.cc %.h
 	$(CXX) $(CXXFLAGS) $< -c -o $@
 
 run_%: run_%.o HanabiServer.o %.o
-	$(CXX) $(LDFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $^
 
 exp_%: exp_%.o HanabiServer.o %.o
 	$(CXX) $(LDFLAGS) -o $@ $^
