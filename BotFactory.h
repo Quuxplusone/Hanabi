@@ -5,10 +5,10 @@
 #include "Hanabi.h"
 
 template<class SpecificBot>
-struct BotFactory : public Hanabi::BotFactory
+struct BotFactory final : public Hanabi::BotFactory
 {
-    virtual Hanabi::Bot *create(int index, int numPlayers, int handSize) const { return new SpecificBot(index, numPlayers, handSize); }
-    virtual void destroy(Hanabi::Bot *bot) const { delete bot; }
+    Hanabi::Bot *create(int index, int numPlayers, int handSize) const override { return new SpecificBot(index, numPlayers, handSize); }
+    void destroy(Hanabi::Bot *bot) const override { delete bot; }
 };
 
 #endif /* H_BOT_FACTORY */
