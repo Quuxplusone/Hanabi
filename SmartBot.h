@@ -109,7 +109,7 @@ class SmartBot final : public Hanabi::Bot {
 
     void updateEyesightCount();
     bool updateLocatedCount();
-    void invalidateKnol(int player_index, int card_index);
+    void invalidateKnol(int player_index, int card_index, bool draw_new_card);
     void seePublicCard(const Hanabi::Card &played_card);
 
     /* Returns -1 if the named player is planning to play a card on his

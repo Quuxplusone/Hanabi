@@ -425,14 +425,18 @@ bool CardKnowledge::couldBeValuableWithValue(int value) const
     return newKnol.valuable() != NO;
 }
 
-void SmartBot::invalidateKnol(int player_index, int card_index)
+void SmartBot::invalidateKnol(int player_index, int card_index, bool draw_new_card)
 {
     /* The other cards are shifted down and a new one drawn at the end. */
     std::vector<CardKnowledge> &vec = handKnowledge_[player_index];
     for (int i = card_index; i+1 < vec.size(); ++i) {
         vec[i] = vec[i+1];
     }
-    vec.back() = CardKnowledge(this);
+    if (draw_new_card) {
+        vec.back() = CardKnowledge(this);
+    } else {
+        vec.pop_back();
+    }
 }
 
 void SmartBot::seePublicCard(const Card &card)
@@ -532,11 +536,11 @@ void SmartBot::pleaseObserveBeforeMove(const Server &server)
 
     myHandSize_ = server.sizeOfHandOfPlayer(me_);
 
+#ifndef NDEBUG
     for (int p=0; p < handKnowledge_.size(); ++p) {
-        const int numCards = server.sizeOfHandOfPlayer(p);
-        assert(handKnowledge_[p].size() >= numCards);
-        handKnowledge_[p].resize(numCards, CardKnowledge(this));
+        assert(handKnowledge_[p].size() == server.sizeOfHandOfPlayer(p));
     }
+#endif
 
     std::memset(this->locatedCount_, '\0', sizeof this->locatedCount_);
     this->updateLocatedCount();
@@ -598,7 +602,7 @@ void SmartBot::pleaseObserveBeforeDiscard(const Hanabi::Server &server, int from
     }
 
     this->seePublicCard(card);
-    this->invalidateKnol(from, card_index);
+    this->invalidateKnol(from, card_index, server.cardsRemainingInDeck() != 0);
 }
 
 void SmartBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, int card_index)
@@ -625,7 +629,7 @@ void SmartBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, i
     }
 
     this->seePublicCard(card);
-    this->invalidateKnol(from, card_index);
+    this->invalidateKnol(from, card_index, server.cardsRemainingInDeck() != 0);
 }
 
 void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, int to, Color color, CardIndices card_indices)
