@@ -446,8 +446,7 @@ void Server::pleaseGiveColorHint(int to, Color color)
     if (hintStonesRemaining_ == 0) throw std::runtime_error("no hint stones remaining");
     if (to == activePlayer_) throw std::runtime_error("cannot give hint to oneself");
 
-    std::vector<int> tempv;
-    CardIndices card_indices(&tempv);
+    CardIndices card_indices;
     for (int i=0; i < hands_[to].size(); ++i) {
         if (hands_[to][i].color == color) {
             card_indices.add(i);
@@ -493,8 +492,7 @@ void Server::pleaseGiveValueHint(int to, Value value)
     if (hintStonesRemaining_ == 0) throw std::runtime_error("no hint stones remaining");
     if (to == activePlayer_) throw std::runtime_error("cannot give hint to oneself");
 
-    std::vector<int> tempv;
-    CardIndices card_indices(&tempv);
+    CardIndices card_indices;
     for (int i=0; i < hands_[to].size(); ++i) {
         if (hands_[to][i].value == value) {
             card_indices.add(i);

@@ -2,6 +2,7 @@
 #ifndef H_HANABI_SERVER
 #define H_HANABI_SERVER
 
+#include <cassert>
 #include <string>
 #include <ostream>
 #include <random>
@@ -65,20 +66,27 @@ public:
 };
 
 class CardIndices {
-    std::vector<int> *indices_;
-    explicit CardIndices(std::vector<int> *v) : indices_(v) {}
-    void add(int i) { indices_->push_back(i); }
+    unsigned int mask_;
+    int count_;
+    explicit CardIndices() : mask_(0), count_(0) {}
+    void add(int index) { mask_ |= (1 << index); count_ += 1; }
     friend class Server;
 public:
     bool contains(int index) const {
-        for (int i : *indices_) {
-            if (i == index) return true;
-        }
-        return false;
+        assert(0 <= index && index < 8);
+        return (mask_ & (1u << index)) != 0;
     }
-    int operator[](int i) const { return (*indices_)[i]; }
-    int size() const { return indices_->size(); }
-    bool empty() const { return indices_->empty(); }
+    int operator[](int i) const {
+        assert(0 <= i && i < count_);
+        int index = 0;
+        while (true) {
+            while (!contains(index)) ++index;
+            if (i-- == 0) return index;
+            ++index;
+        }
+    }
+    int size() const { return count_; }
+    bool empty() const { return (mask_ == 0); }
 };
 
 class Server {
