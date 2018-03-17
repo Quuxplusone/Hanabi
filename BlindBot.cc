@@ -10,8 +10,8 @@ BlindBot::BlindBot(int, int, int) { }
 void BlindBot::pleaseObserveBeforeMove(const Server &) { }
 void BlindBot::pleaseObserveBeforeDiscard(const Server &, int, int) { }
 void BlindBot::pleaseObserveBeforePlay(const Server &, int, int) { }
-void BlindBot::pleaseObserveColorHint(const Server &, int, int, Color, const std::vector<int> &) { }
-void BlindBot::pleaseObserveValueHint(const Server &, int, int, Value, const std::vector<int> &) { }
+void BlindBot::pleaseObserveColorHint(const Server &, int, int, Color, CardIndices) { }
+void BlindBot::pleaseObserveValueHint(const Server &, int, int, Value, CardIndices) { }
 void BlindBot::pleaseObserveAfterMove(const Server &) { }
 
 void BlindBot::pleaseMakeMove(Server &server)

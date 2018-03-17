@@ -59,8 +59,8 @@ void CheatBot::pleaseObserveBeforeMove(const Server &server)
 
 void CheatBot::pleaseObserveBeforeDiscard(const Server &, int, int) { }
 void CheatBot::pleaseObserveBeforePlay(const Server &, int, int) { }
-void CheatBot::pleaseObserveColorHint(const Server &, int, int, Color, const std::vector<int> &) { }
-void CheatBot::pleaseObserveValueHint(const Server &, int, int, Value, const std::vector<int> &) { }
+void CheatBot::pleaseObserveColorHint(const Server &, int, int, Color, CardIndices) { }
+void CheatBot::pleaseObserveValueHint(const Server &, int, int, Value, CardIndices) { }
 void CheatBot::pleaseObserveAfterMove(const Server &) { }
 
 bool CheatBot::maybeEnablePlay(Server &server, int plus)

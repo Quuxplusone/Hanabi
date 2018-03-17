@@ -10,15 +10,6 @@ using namespace Hanabi;
 
 static const bool UseMulligans = true;
 
-template<typename T>
-static bool vector_contains(const std::vector<T> &vec, T value)
-{
-    for (int i=0; i < vec.size(); ++i) {
-        if (vec[i] == value) return true;
-    }
-    return false;
-}
-
 CardKnowledge::CardKnowledge()
 {
     color_ = -1;
@@ -334,7 +325,7 @@ void HolmesBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, 
     this->invalidateKnol(from, card_index);
 }
 
-void HolmesBot::pleaseObserveColorHint(const Hanabi::Server &server, int /*from*/, int to, Color color, const std::vector<int> &card_indices)
+void HolmesBot::pleaseObserveColorHint(const Hanabi::Server &server, int /*from*/, int to, Color color, CardIndices card_indices)
 {
     assert(server.whoAmI() == me_);
 
@@ -350,7 +341,7 @@ void HolmesBot::pleaseObserveColorHint(const Hanabi::Server &server, int /*from*
 
     for (int i=0; i < server.sizeOfHandOfPlayer(to); ++i) {
         CardKnowledge &knol = handKnowledge_[to][i];
-        if (vector_contains(card_indices, i)) {
+        if (card_indices.contains(i)) {
             knol.setMustBe(color);
             if (knol.value() == -1 && !knol.isWorthless) {
                 knol.setMustBe(Value(value));
@@ -374,7 +365,7 @@ int HolmesBot::nextDiscardIndex(const Hanabi::Server& server, int to) const
     return -1;
 }
 
-void HolmesBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, int to, Value value, const std::vector<int> &card_indices)
+void HolmesBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, int to, Value value, CardIndices card_indices)
 {
     assert(server.whoAmI() == me_);
 
@@ -386,12 +377,12 @@ void HolmesBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, i
     const int discardIndex = this->nextDiscardIndex(server, to);
     const bool isPointless = (value < lowestPlayableValue_);
     const bool isWarning =
-        vector_contains(card_indices, discardIndex) &&
+        card_indices.contains(discardIndex) &&
         couldBeValuable(server, handKnowledge_[to][discardIndex], value);
     const bool isHintStoneReclaim =
         (!server.discardingIsAllowed()) &&
         (from == (to+1) % server.numPlayers()) &&
-        vector_contains(card_indices, 0);
+        card_indices.contains(0);
 
     if (isHintStoneReclaim) {
         return;
@@ -415,7 +406,7 @@ void HolmesBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, i
     const int numCards = server.sizeOfHandOfPlayer(to);
     for (int i=0; i < numCards; ++i) {
         CardKnowledge &knol = handKnowledge_[to][i];
-        if (vector_contains(card_indices, i)) {
+        if (card_indices.contains(i)) {
             knol.setMustBe(value);
             if (knol.color() == -1 && !isWarning && !knol.isWorthless) {
                 knol.isPlayable = true;

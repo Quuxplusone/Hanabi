@@ -12,15 +12,6 @@ using namespace Hanabi;
 static const bool UseMulligans = true;
 
 template<typename T>
-static bool vector_contains(const std::vector<T> &vec, T value)
-{
-    for (int i=0; i < vec.size(); ++i) {
-        if (vec[i] == value) return true;
-    }
-    return false;
-}
-
-template<typename T>
 static int vector_count(const std::vector<T> &vec, T value)
 {
     int result = 0;
@@ -637,7 +628,7 @@ void SmartBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, i
     this->invalidateKnol(from, card_index);
 }
 
-void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, int to, Color color, const std::vector<int> &card_indices)
+void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, int to, Color color, CardIndices card_indices)
 {
     server_ = &server;
     assert(server.whoAmI() == me_);
@@ -653,7 +644,7 @@ void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
     for (int i=numCards-1; i >= 0; --i) {
         CardKnowledge &knol = handKnowledge_[to][i];
         const bool wasMaybePlayable = (knol.playable() == MAYBE);
-        if (vector_contains(card_indices, i)) {
+        if (card_indices.contains(i)) {
             knol.setMustBe(color);
             if (wasMaybePlayable) {
                 if (knol.playable() == YES) {
@@ -681,7 +672,7 @@ void SmartBot::pleaseObserveColorHint(const Hanabi::Server &server, int from, in
     }
 }
 
-void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, int to, Value value, const std::vector<int> &card_indices)
+void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, int to, Value value, CardIndices card_indices)
 {
     server_ = &server;
     assert(server.whoAmI() == me_);
@@ -697,11 +688,11 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
     const bool isHintStoneReclaim =
         (!server.discardingIsAllowed()) &&
         (from == (to+1) % server.numPlayers()) &&
-        vector_contains(card_indices, 0);
+        card_indices.contains(0);
     const bool isWarning =
         !isHintStoneReclaim &&
         (to == playerExpectingWarning) &&
-        vector_contains(card_indices, discardIndex) &&
+        card_indices.contains(discardIndex) &&
         handKnowledge_[to][discardIndex].couldBeValuableWithValue(value);
 
     if (isWarning) {
@@ -716,7 +707,7 @@ void SmartBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
     for (int i=numCards-1; i >= 0; --i) {
         CardKnowledge &knol = handKnowledge_[to][i];
         const bool wasMaybePlayable = (knol.playable() == MAYBE);
-        if (vector_contains(card_indices, i)) {
+        if (card_indices.contains(i)) {
             knol.setMustBe(value);
             if (wasMaybePlayable) {
                 if (knol.playable() == YES) {

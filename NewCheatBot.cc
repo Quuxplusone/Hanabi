@@ -110,8 +110,8 @@ void NewCheatBot::pleaseObserveBeforeDiscard(const Server &server, int, int)
 }
 
 void NewCheatBot::pleaseObserveBeforePlay(const Server &, int, int) { }
-void NewCheatBot::pleaseObserveColorHint(const Server &, int, int, Color, const std::vector<int> &) { }
-void NewCheatBot::pleaseObserveValueHint(const Server &, int, int, Value, const std::vector<int> &) { }
+void NewCheatBot::pleaseObserveColorHint(const Server &, int, int, Color, CardIndices) { }
+void NewCheatBot::pleaseObserveValueHint(const Server &, int, int, Value, CardIndices) { }
 void NewCheatBot::pleaseObserveAfterMove(const Server &) { }
 
 enum Kind { DISCARD, PLAY, HINT, FAKE };

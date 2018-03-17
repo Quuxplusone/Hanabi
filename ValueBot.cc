@@ -6,15 +6,6 @@
 
 using namespace Hanabi;
 
-template<typename T>
-static bool vector_contains(const std::vector<T> &vec, T value)
-{
-    for (int i=0; i < vec.size(); ++i) {
-        if (vec[i] == value) return true;
-    }
-    return false;
-}
-
 CardKnowledge::CardKnowledge()
 {
     for (Color color = RED; color <= BLUE; ++color) {
@@ -188,7 +179,7 @@ void ValueBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, i
     }
 }
 
-void ValueBot::pleaseObserveColorHint(const Hanabi::Server &server, int /*from*/, int to, Color color, const std::vector<int> &card_indices)
+void ValueBot::pleaseObserveColorHint(const Hanabi::Server &server, int /*from*/, int to, Color color, Hanabi::CardIndices card_indices)
 {
     assert(server.whoAmI() == me_);
 
@@ -235,7 +226,7 @@ int ValueBot::nextDiscardIndex(const Hanabi::Server& server, int to) const
     return -1;
 }
 
-void ValueBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, int to, Value value, const std::vector<int> &card_indices)
+void ValueBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, int to, Value value, Hanabi::CardIndices card_indices)
 {
     assert(server.whoAmI() == me_);
 
@@ -247,11 +238,11 @@ void ValueBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, in
     const int discardIndex = this->nextDiscardIndex(server, to);
     const int lowestValue = lowestPlayableValue();
     const bool isPointless = (value < lowestValue);
-    const bool isWarning = couldBeValuable(value) && vector_contains(card_indices, discardIndex);
+    const bool isWarning = couldBeValuable(value) && card_indices.contains(discardIndex);
     const bool isHintStoneReclaim =
         (!server.discardingIsAllowed()) &&
         (from == (to+1) % server.numPlayers()) &&
-        vector_contains(card_indices, 0);
+        card_indices.contains(0);
 
     if (isHintStoneReclaim) {
         return;

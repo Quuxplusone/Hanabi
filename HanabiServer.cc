@@ -36,7 +36,7 @@ static std::string nth(int n, int total)
     }
 }
 
-static std::string nth(const std::vector<int> &ns, int total)
+static std::string nth(const Hanabi::CardIndices& ns, int total)
 {
     std::string result;
     assert(!ns.empty());
@@ -446,10 +446,11 @@ void Server::pleaseGiveColorHint(int to, Color color)
     if (hintStonesRemaining_ == 0) throw std::runtime_error("no hint stones remaining");
     if (to == activePlayer_) throw std::runtime_error("cannot give hint to oneself");
 
-    std::vector<int> card_indices;
+    std::vector<int> tempv;
+    CardIndices card_indices(&tempv);
     for (int i=0; i < hands_[to].size(); ++i) {
         if (hands_[to][i].color == color) {
-            card_indices.push_back(i);
+            card_indices.add(i);
         }
     }
     if (card_indices.empty()) throw std::runtime_error("hint must include at least one card");
@@ -492,10 +493,11 @@ void Server::pleaseGiveValueHint(int to, Value value)
     if (hintStonesRemaining_ == 0) throw std::runtime_error("no hint stones remaining");
     if (to == activePlayer_) throw std::runtime_error("cannot give hint to oneself");
 
-    std::vector<int> card_indices;
+    std::vector<int> tempv;
+    CardIndices card_indices(&tempv);
     for (int i=0; i < hands_[to].size(); ++i) {
         if (hands_[to][i].value == value) {
-            card_indices.push_back(i);
+            card_indices.add(i);
         }
     }
     if (card_indices.empty()) throw std::runtime_error("hint must include at least one card");

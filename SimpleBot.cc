@@ -5,15 +5,6 @@
 
 using namespace Hanabi;
 
-template<typename T>
-static bool vector_contains(const std::vector<T> &vec, T value)
-{
-    for (int i=0; i < vec.size(); ++i) {
-        if (vec[i] == value) return true;
-    }
-    return false;
-}
-
 CardKnowledge::CardKnowledge()
 {
     for (Color color = RED; color <= BLUE; ++color) {
@@ -93,7 +84,7 @@ void SimpleBot::pleaseObserveBeforePlay(const Hanabi::Server &server, int from, 
     this->wipeOutPlayables(server.activeCard());
 }
 
-void SimpleBot::pleaseObserveColorHint(const Hanabi::Server &server, int /*from*/, int to, Color color, const std::vector<int> &card_indices)
+void SimpleBot::pleaseObserveColorHint(const Hanabi::Server &server, int /*from*/, int to, Color color, Hanabi::CardIndices card_indices)
 {
     assert(server.whoAmI() == me_);
 
@@ -113,7 +104,7 @@ void SimpleBot::pleaseObserveColorHint(const Hanabi::Server &server, int /*from*
     }
 }
 
-void SimpleBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, int to, Value value, const std::vector<int> &card_indices)
+void SimpleBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, int to, Value value, Hanabi::CardIndices card_indices)
 {
     assert(server.whoAmI() == me_);
 
@@ -125,7 +116,7 @@ void SimpleBot::pleaseObserveValueHint(const Hanabi::Server &server, int from, i
     const bool isHintStoneReclaim =
         (!server.discardingIsAllowed()) &&
         (from == (to+1) % server.numPlayers()) &&
-        vector_contains(card_indices, 0);
+        card_indices.contains(0);
 
     if (isHintStoneReclaim) {
         return;

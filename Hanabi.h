@@ -64,6 +64,23 @@ public:
     bool contains(int value) const { return (1 <= value && value <= size_); }
 };
 
+class CardIndices {
+    std::vector<int> *indices_;
+    explicit CardIndices(std::vector<int> *v) : indices_(v) {}
+    void add(int i) { indices_->push_back(i); }
+    friend class Server;
+public:
+    bool contains(int index) const {
+        for (int i : *indices_) {
+            if (i == index) return true;
+        }
+        return false;
+    }
+    int operator[](int i) const { return (*indices_)[i]; }
+    int size() const { return indices_->size(); }
+    bool empty() const { return indices_->empty(); }
+};
+
 class Server {
 public:
     Server();
@@ -239,8 +256,8 @@ public:
     virtual void pleaseMakeMove(Server &) = 0;
       virtual void pleaseObserveBeforeDiscard(const Server &, int from, int card_index) = 0;
       virtual void pleaseObserveBeforePlay(const Server &, int from, int card_index) = 0;
-      virtual void pleaseObserveColorHint(const Server &, int from, int to, Color color, const std::vector<int> &card_indices) = 0;
-      virtual void pleaseObserveValueHint(const Server &, int from, int to, Value value, const std::vector<int> &card_indices) = 0;
+      virtual void pleaseObserveColorHint(const Server &, int from, int to, Color color, CardIndices card_indices) = 0;
+      virtual void pleaseObserveValueHint(const Server &, int from, int to, Value value, CardIndices card_indices) = 0;
     virtual void pleaseObserveAfterMove(const Server &) = 0;
 };
 

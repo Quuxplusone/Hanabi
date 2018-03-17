@@ -138,7 +138,7 @@ class SmartBot final : public Hanabi::Bot {
     void pleaseMakeMove(Hanabi::Server &) override;
       void pleaseObserveBeforeDiscard(const Hanabi::Server &, int from, int card_index) override;
       void pleaseObserveBeforePlay(const Hanabi::Server &, int from, int card_index) override;
-      void pleaseObserveColorHint(const Hanabi::Server &, int from, int to, Hanabi::Color color, const std::vector<int> &card_indices) override;
-      void pleaseObserveValueHint(const Hanabi::Server &, int from, int to, Hanabi::Value value, const std::vector<int> &card_indices) override;
+      void pleaseObserveColorHint(const Hanabi::Server &, int from, int to, Hanabi::Color color, Hanabi::CardIndices card_indices) override;
+      void pleaseObserveValueHint(const Hanabi::Server &, int from, int to, Hanabi::Value value, Hanabi::CardIndices card_indices) override;
     void pleaseObserveAfterMove(const Hanabi::Server &) override;
 };
