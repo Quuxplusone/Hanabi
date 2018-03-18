@@ -9,6 +9,12 @@
 #include <vector>
 #include "Hanabi.h"
 
+#ifdef HANABI_SERVER_NDEBUG
+#define HANABI_SERVER_ASSERT(x, msg) (void)0
+#else
+#define HANABI_SERVER_ASSERT(x, msg) do { if (!(x)) throw std::runtime_error(msg); } while (0)
+#endif
+
 static std::string nth(int n, int total)
 {
     if (total == 5) {
@@ -73,7 +79,7 @@ int Card::count() const
         case 1: return 3;
         case 2: case 3: case 4: return 2;
         case 5: return 1;
-        default: throw std::runtime_error("invalid card value");
+        default: HANABI_SERVER_ASSERT(false, "invalid card value");
     }
 }
 
@@ -87,12 +93,9 @@ std::string Card::toString() const
 
 Card Pile::topCard() const
 {
-    if (size_ == 0) {
-        throw std::runtime_error("empty pile has no top card");
-    } else {
-        assert(1 <= size_ && size_ <= 5);
-        return Card(color, size_);
-    }
+    HANABI_SERVER_ASSERT(size_ != 0, "empty pile has no top card");
+    assert(1 <= size_ && size_ <= 5);
+    return Card(color, size_);
 }
 
 void Pile::increment_()
@@ -218,9 +221,7 @@ int Server::runGame(const BotFactory &botFactory, int numPlayers, const std::vec
         observingPlayer_ = activePlayer_;
         movesFromActivePlayer_ = 0;
         players_[activePlayer_]->pleaseMakeMove(*this);  /* make a move */
-        if (movesFromActivePlayer_ == 0) {
-            throw std::runtime_error("bot failed to respond to pleaseMove()");
-        }
+        HANABI_SERVER_ASSERT(movesFromActivePlayer_ != 0, "bot failed to respond to pleaseMove()");
         assert(movesFromActivePlayer_ == 1);
         movesFromActivePlayer_ = -1;
         for (int i=0; i < numPlayers; ++i) {
@@ -257,27 +258,27 @@ int Server::activePlayer() const
 
 int Server::sizeOfHandOfPlayer(int player) const
 {
-    if (player < 0 || numPlayers_ <= player) throw std::runtime_error("player index out of bounds");
+    HANABI_SERVER_ASSERT(0 <= player && player < numPlayers_, "player index out of bounds");
     return hands_[player].size();
 }
 
 std::vector<Card> Server::handOfPlayer(int player) const
 {
-    if (player == observingPlayer_) throw std::runtime_error("cannot observe own hand");
-    if (player < 0 || numPlayers_ <= player) throw std::runtime_error("player index out of bounds");
+    HANABI_SERVER_ASSERT(player != observingPlayer_, "cannot observe own hand");
+    HANABI_SERVER_ASSERT(0 <= player && player < numPlayers_, "player index out of bounds");
     return hands_[player];
 }
 
 Card Server::activeCard() const
 {
-    if (!activeCardIsObservable_) throw std::runtime_error("called activeCard() from the wrong observer");
+    HANABI_SERVER_ASSERT(activeCardIsObservable_, "called activeCard() from the wrong observer");
     return activeCard_;
 }
 
 Pile Server::pileOf(Color color) const
 {
     int index = (int)color;
-    if (index < 0 || NUMCOLORS <= index) throw std::runtime_error("invalid Color");
+    HANABI_SERVER_ASSERT(0 <= index && index < NUMCOLORS, "invalid Color");
     return piles_[color];
 }
 
@@ -300,7 +301,11 @@ int Server::hintStonesRemaining() const
 
 bool Server::discardingIsAllowed() const
 {
+#ifdef HANABI_ALLOW_DISCARDING_EVEN_WITH_ALL_HINT_STONES
+    return true;
+#else
     return (hintStonesRemaining_ != NUMHINTS);
+#endif
 }
 
 int Server::mulligansUsed() const
@@ -323,10 +328,10 @@ int Server::cardsRemainingInDeck() const
 Card Server::pleaseDiscard(int index)
 {
     assert(0 <= activePlayer_ && activePlayer_ < numPlayers_);
-    if (movesFromActivePlayer_ > 0) throw std::runtime_error("bot attempted to move twice");
-    if (movesFromActivePlayer_ < 0) throw std::runtime_error("called pleaseDiscard() from the wrong observer");
-    if (index < 0 || hands_[activePlayer_].size() <= index) throw std::runtime_error("invalid card index");
-    if (!discardingIsAllowed()) throw std::runtime_error("all hint stones are already available");
+    HANABI_SERVER_ASSERT(movesFromActivePlayer_ < 1, "bot attempted to move twice");
+    HANABI_SERVER_ASSERT(movesFromActivePlayer_ == 0, "called pleaseDiscard() from the wrong observer");
+    HANABI_SERVER_ASSERT(0 <= index && index <= hands_[activePlayer_].size(), "invalid card index");
+    HANABI_SERVER_ASSERT(discardingIsAllowed(), "all hint stones are already available");
 
     Card discardedCard = hands_[activePlayer_][index];
     activeCard_ = discardedCard;
@@ -373,9 +378,9 @@ Card Server::pleasePlay(int index)
 {
     assert(0 <= activePlayer_ && activePlayer_ < hands_.size());
     assert(players_.size() == hands_.size());
-    if (movesFromActivePlayer_ > 0) throw std::runtime_error("bot attempted to move twice");
-    if (movesFromActivePlayer_ < 0) throw std::runtime_error("called pleasePlay() from the wrong observer");
-    if (index < 0 || hands_[activePlayer_].size() <= index) throw std::runtime_error("invalid card index");
+    HANABI_SERVER_ASSERT(movesFromActivePlayer_ < 1, "bot attempted to move twice");
+    HANABI_SERVER_ASSERT(movesFromActivePlayer_ == 0, "called pleasePlay() from the wrong observer");
+    HANABI_SERVER_ASSERT(0 <= index && index <= hands_[activePlayer_].size(), "invalid card index");
 
     Card selectedCard = hands_[activePlayer_][index];
     activeCard_ = selectedCard;
@@ -439,12 +444,12 @@ void Server::pleaseGiveColorHint(int to, Color color)
 {
     assert(0 <= activePlayer_ && activePlayer_ < hands_.size());
     assert(players_.size() == hands_.size());
-    if (movesFromActivePlayer_ > 0) throw std::runtime_error("bot attempted to move twice");
-    if (movesFromActivePlayer_ < 0) throw std::runtime_error("called pleaseGiveColorHint() from the wrong observer");
-    if (to < 0 || hands_.size() <= to) throw std::runtime_error("invalid player index");
-    if (color < RED || BLUE < color) throw std::runtime_error("invalid color");
-    if (hintStonesRemaining_ == 0) throw std::runtime_error("no hint stones remaining");
-    if (to == activePlayer_) throw std::runtime_error("cannot give hint to oneself");
+    HANABI_SERVER_ASSERT(movesFromActivePlayer_ < 1, "bot attempted to move twice");
+    HANABI_SERVER_ASSERT(movesFromActivePlayer_ == 0, "called pleaseGiveColorHint() from the wrong observer");
+    HANABI_SERVER_ASSERT(0 <= to && to < hands_.size(), "invalid player index");
+    HANABI_SERVER_ASSERT(RED <= color && color <= BLUE, "invalid color");
+    HANABI_SERVER_ASSERT(hintStonesRemaining_ != 0, "no hint stones remaining");
+    HANABI_SERVER_ASSERT(to != activePlayer_, "cannot give hint to oneself");
 
     CardIndices card_indices;
     for (int i=0; i < hands_[to].size(); ++i) {
@@ -452,17 +457,21 @@ void Server::pleaseGiveColorHint(int to, Color color)
             card_indices.add(i);
         }
     }
-    if (card_indices.empty()) throw std::runtime_error("hint must include at least one card");
+#ifndef HANABI_ALLOW_EMPTY_HINTS
+    HANABI_SERVER_ASSERT(!card_indices.empty(), "hint must include at least one card");
+#endif
 
     if (log_) {
         const bool singular = (card_indices.size() == 1);
         (*log_) << "Player " << activePlayer_
                 << " told player " << to
-                << " that his ";
-        if (card_indices.size() == hands_[to].size()) {
-            (*log_) << "whole hand was ";
+                << " that ";
+        if (card_indices.empty()) {
+            (*log_) << "none of his cards were ";
+        } else if (card_indices.size() == hands_[to].size()) {
+            (*log_) << "his whole hand was ";
         } else {
-            (*log_) << nth(card_indices, hands_[to].size())
+            (*log_) << "his " << nth(card_indices, hands_[to].size())
                 << (singular ? " card was " : " cards were ");
         }
         (*log_) << colorname(color) << ".\n";
@@ -485,12 +494,12 @@ void Server::pleaseGiveValueHint(int to, Value value)
 {
     assert(0 <= activePlayer_ && activePlayer_ < hands_.size());
     assert(players_.size() == hands_.size());
-    if (movesFromActivePlayer_ > 0) throw std::runtime_error("bot attempted to move twice");
-    if (movesFromActivePlayer_ < 0) throw std::runtime_error("called pleaseGiveValueHint() from the wrong observer");
-    if (to < 0 || players_.size() <= to) throw std::runtime_error("invalid player index");
-    if (value <= 0 || 5 < value) throw std::runtime_error("invalid value");
-    if (hintStonesRemaining_ == 0) throw std::runtime_error("no hint stones remaining");
-    if (to == activePlayer_) throw std::runtime_error("cannot give hint to oneself");
+    HANABI_SERVER_ASSERT(movesFromActivePlayer_ < 1, "bot attempted to move twice");
+    HANABI_SERVER_ASSERT(movesFromActivePlayer_ == 0, "called pleaseGiveValueHint() from the wrong observer");
+    HANABI_SERVER_ASSERT(0 <= to && to < hands_.size(), "invalid player index");
+    HANABI_SERVER_ASSERT(1 <= value && value <= 5, "invalid value");
+    HANABI_SERVER_ASSERT(hintStonesRemaining_ != 0, "no hint stones remaining");
+    HANABI_SERVER_ASSERT(to != activePlayer_, "cannot give hint to oneself");
 
     CardIndices card_indices;
     for (int i=0; i < hands_[to].size(); ++i) {
@@ -498,17 +507,21 @@ void Server::pleaseGiveValueHint(int to, Value value)
             card_indices.add(i);
         }
     }
-    if (card_indices.empty()) throw std::runtime_error("hint must include at least one card");
+#ifndef HANABI_ALLOW_EMPTY_HINTS
+    HANABI_SERVER_ASSERT(!card_indices.empty(), "hint must include at least one card");
+#endif
 
     if (log_) {
         const bool singular = (card_indices.size() == 1);
         (*log_) << "Player " << activePlayer_
                 << " told player " << to
-                << " that his ";
-        if (card_indices.size() == hands_[to].size()) {
-            (*log_) << "whole hand was ";
+                << " that ";
+        if (card_indices.empty()) {
+            (*log_) << "none of his cards were ";
+        } else if (card_indices.size() == hands_[to].size()) {
+            (*log_) << "his whole hand was ";
         } else {
-            (*log_) << nth(card_indices, hands_[to].size())
+            (*log_) << "his " << nth(card_indices, hands_[to].size())
                 << (singular ? " card was " : " cards were ");
         }
         (*log_) << value

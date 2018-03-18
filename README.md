@@ -54,14 +54,16 @@ or on purpose:
 * "Empty hints" — such as "Bob, you have no green cards" — are not allowed.
   (The game's designer is apparently on record as claiming that empty hints
   make the game better; but they also make it super easy to "solve" the game
-  via "hat-guessing" strategies. Empty hints are not allowed, according
-  to the rulebook that comes in the box.)
+  via ["hat-guessing"](https://github.com/rjtobin/HanSim) strategies.
+  Empty hints are not allowed, according to the rulebook that comes in the box.)
+  Empty hints can be enabled via `-DHANABI_ALLOW_EMPTY_HINTS`.
 
 * For a 2- or 3-player game, each player should have 5 cards in hand.
   For 4- or 5-player games, each player should have only 4 cards in hand.
 
 * When no hint stones are available, hinting is forbidden. Less well-known:
   When all 8 hint stones are available, discarding is forbidden.
+  Discarding can be enabled via `-DHANABI_ALLOW_DISCARDING_EVEN_WITH_ALL_HINT_STONES`.
 
 * When a card of value 5 is successfully played, a hint stone is regained
   if possible. If all 8 hint stones are available, the play is still allowed

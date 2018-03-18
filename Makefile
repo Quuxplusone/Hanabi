@@ -3,7 +3,7 @@ CXXFLAGS += -W -Wall -Wextra -pedantic -Wno-sign-compare
 CXXFLAGS += ${EXTRA_CXXFLAGS}
 
 ifeq ($(FAST),1)
-  CXXFLAGS += -O3 -DNDEBUG -flto -Wno-unused-parameter -Wno-unused-variable
+  CXXFLAGS += -O3 -DNDEBUG -DHANABI_SERVER_NDEBUG -flto -Wno-unused-parameter -Wno-unused-variable
 endif
 
 ifeq ($(OPENMP),1)
