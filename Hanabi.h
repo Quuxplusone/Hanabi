@@ -129,7 +129,7 @@ public:
     /* Returns a vector of the cards in some player's hand.
      * Throws an exception if a player tries to look at his own hand,
      * i.e., server.handOfPlayer(server.whoAmI()). */
-    std::vector<Card> handOfPlayer(int player) const;
+    const std::vector<Card>& handOfPlayer(int player) const;
 
     /* Returns the card about to be played or discarded. This allows
      * the active player to observe his own play from within
@@ -147,7 +147,7 @@ public:
      * Discards include any cards that were misplayed as a
      * result of a bad pleasePlay(), in addition to any cards
      * that were explicitly discarded with pleaseDiscard(). */
-    std::vector<Card> discards() const;
+    const std::vector<Card>& discards() const;
 
     /* Returns the number of hint-stones used (by all players),
      * or the number remaining in the middle of the table.

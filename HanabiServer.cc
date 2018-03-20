@@ -262,7 +262,7 @@ int Server::sizeOfHandOfPlayer(int player) const
     return hands_[player].size();
 }
 
-std::vector<Card> Server::handOfPlayer(int player) const
+const std::vector<Card>& Server::handOfPlayer(int player) const
 {
     HANABI_SERVER_ASSERT(player != observingPlayer_, "cannot observe own hand");
     HANABI_SERVER_ASSERT(0 <= player && player < numPlayers_, "player index out of bounds");
@@ -282,7 +282,7 @@ Pile Server::pileOf(Color color) const
     return piles_[color];
 }
 
-std::vector<Card> Server::discards() const
+const std::vector<Card>& Server::discards() const
 {
     return discards_;
 }
