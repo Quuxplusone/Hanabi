@@ -18,7 +18,34 @@ using Hanabi::RED;
 using Hanabi::BLUE;
 
 template<class T, int Cap>
-using fixed_capacity_vector = std::vector<T>;
+class fixed_capacity_vector {
+    int size_ = 0;
+    alignas(T) char buffer_[Cap][sizeof(T)];
+public:
+    fixed_capacity_vector() = default;
+    fixed_capacity_vector(const fixed_capacity_vector& rhs) = delete;
+    fixed_capacity_vector& operator=(const fixed_capacity_vector& rhs) = delete;
+    ~fixed_capacity_vector() {
+        for (int i=0; i < size_; ++i) {
+            (*this)[i].~T();
+        }
+    }
+
+    template<class... Args>
+    void emplace_back(Args&&... args) {
+        assert(size_ < Cap);
+        new ((void*)buffer_[size_]) T(std::forward<Args>(args)...);
+        size_ += 1;
+    }
+
+    const T& operator[](int i) const { return *(T*)buffer_[i]; }
+    const T *begin() const { return (const T*)buffer_[0]; }
+    const T *end() const { return (const T*)buffer_[size_]; }
+    T *begin() { return (T*)buffer_[0]; }
+    T *end() { return (T*)buffer_[size_]; }
+    int size() const { return size_; }
+    bool empty() const { return size() == 0; }
+};
 
 struct Hinted {
     enum Kind { COLOR, VALUE };
@@ -594,7 +621,7 @@ public:
                 if (knol.is_determined) continue;
                 if (knol.p_dead == 1.0) continue;
                 if (knol.p_play == 1.0 || knol.p_play < 0.2) continue;
-                ask_play.push_back(knol);
+                ask_play.emplace_back(knol);
             }
             // sort by probability of play, then by index
             std::sort(ask_play.begin(), ask_play.end(), [](auto&& a, auto&& b) {
@@ -616,7 +643,7 @@ public:
             if (knol.is_determined) continue;
             // TODO: possibly still valuable to ask?
             if (knol.p_dead == 1.0) continue;
-            ask_partition.push_back(knol);
+            ask_partition.emplace_back(knol);
         }
 
         // sort by probability of play, then by index
