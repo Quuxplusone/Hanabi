@@ -600,23 +600,16 @@ public:
         return questions;
     }
 
-    ModulusInformation answer_questions(
-        const std::vector<std::shared_ptr<Question>>& questions,
-        const std::vector<Card>& hand, const GameView& view) const
-    {
-        ModulusInformation answer_info = ModulusInformation::none();
-        for (auto&& question : questions) {
-            auto new_answer_info = question->answer_info(hand, view);
-            answer_info.combine(new_answer_info);
-        }
-        return answer_info;
-    }
-
     ModulusInformation get_hint_info_for_player(int player, int total_info, const OwnedGameView& view) const {
         assert(player != me);
         const auto& hand_info = get_player_public_info(player);
         auto questions = this->get_questions(total_info, view, hand_info);
-        auto answer = this->answer_questions(questions, view.get_hand(player), view);
+        auto hand = view.get_hand(player);
+        ModulusInformation answer = ModulusInformation::none();
+        for (auto&& question : questions) {
+            auto new_answer_info = question->answer_info(hand, view);
+            answer.combine(new_answer_info);
+        }
         answer.cast_up(total_info);
         return answer;
     }
@@ -975,7 +968,7 @@ public:
                 }
                 return this->get_best_hint_of_options(server, hint_player, hint_option_set);
             }() : []() -> Hinted {
-                assert(!"Invalid hint type");
+                assert(!"Invalid hint type"); __builtin_unreachable();
             }()
         ) : (
             (hint_type == 0) ? Hinted::WithValue(hint_card.value) :
@@ -996,7 +989,7 @@ public:
                 }
                 return this->get_best_hint_of_options(server, hint_player, hint_option_set);
             }() : []() -> Hinted {
-                assert(!"Invalid hint type");
+                assert(!"Invalid hint type"); __builtin_unreachable();
             }()
         );
 
