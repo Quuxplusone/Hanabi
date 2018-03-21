@@ -3,7 +3,6 @@
 #include "InfoBot.h"
 
 #include <cassert>
-#include <map>
 #include <memory>
 #include <set>
 #include <vector>
@@ -16,15 +15,6 @@ using Hanabi::Color;
 using Hanabi::Value;
 using Hanabi::RED;
 using Hanabi::BLUE;
-
-struct CardLessThan {
-    CardLessThan() = default;
-    bool operator()(Card a, Card b) const noexcept {
-        if ((int)a.color != (int)b.color) return (int)a.color < (int)b.color;
-        if ((int)a.value != (int)b.value) return (int)a.value < (int)b.value;
-        return false;
-    }
-};
 
 struct Hinted {
     enum Kind { COLOR, VALUE };
@@ -458,16 +448,25 @@ public:
     }
 };
 
+class CardToIntMap {
+    int8_t map_[Hanabi::NUMCOLORS][5+1] {};
+public:
+    void emplace(Card key, int value) {
+        map_[key.color][key.value] = value;
+    }
+    int at(Card key) const { return map_[key.color][key.value]; }
+};
+
 class CardPossibilityPartition : public QuestionImpl {
     int index;
     int n_partitions;
-    std::map<Card, int, CardLessThan> partition;
+    CardToIntMap partition;
 public:
     explicit CardPossibilityPartition(
         int index, int max_n_partitions, const CardPossibilityTable& card_table, const GameView& view)
     {
         int cur_block = 0;
-        std::map<Card, int, CardLessThan> partition;
+        CardToIntMap partition;
         int n_partitions = 0;
 
         bool has_dead = card_table.probability_is_dead(view) != 0.0;
@@ -720,7 +719,7 @@ public:
 
     std::vector<int> find_useless_cards(const GameView& view, const std::vector<CardPossibilityTable>& hand) {
         std::set<int> useless;
-        std::map<Card, int, CardLessThan> seen;
+        CardToIntMap seen;
 
         for (int i=0; i < (int)hand.size(); ++i) {
             const auto& card_table = hand[i];
@@ -730,12 +729,12 @@ public:
                 auto poss = card_table.get_possibilities();
                 if (poss.size() == 1) {
                     Card card = poss[0];
-                    if (seen.count(card)) {
+                    if (seen.at(card) != 0) {
                         // found a duplicate card
                         useless.insert(i);
-                        useless.insert(seen.at(card));
+                        useless.insert(seen.at(card) - 1);
                     } else {
-                        seen.emplace(card, i);
+                        seen.emplace(card, i + 1);
                     }
                 }
             }
