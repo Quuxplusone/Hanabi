@@ -8,6 +8,7 @@
 #include <vector>
 
 #define MAXPLAYERS 10  // use statically sized arrays instead of vector in some places
+#define MAXHANDSIZE 5  // use statically sized arrays instead of vector in some places
 
 using Hanabi::Card;
 using Hanabi::CardIndices;
@@ -15,6 +16,9 @@ using Hanabi::Color;
 using Hanabi::Value;
 using Hanabi::RED;
 using Hanabi::BLUE;
+
+template<class T, int Cap>
+using fixed_capacity_vector = std::vector<T>;
 
 struct Hinted {
     enum Kind { COLOR, VALUE };
@@ -568,7 +572,7 @@ public:
             return info_remaining <= 1;
         };
 
-        std::vector<AugmentedCardPossibilities> augmented_hand_info;
+        fixed_capacity_vector<AugmentedCardPossibilities, MAXHANDSIZE> augmented_hand_info;
         for (int i=0; i < (int)hand_info.size(); ++i) {
             const auto& card_table = hand_info[i];
             double p_play = card_table.probability_is_playable(view);
@@ -607,7 +611,7 @@ public:
             }
         }
 
-        std::vector<AugmentedCardPossibilities> ask_partition;
+        fixed_capacity_vector<AugmentedCardPossibilities, MAXHANDSIZE> ask_partition;
         for (auto&& knol : augmented_hand_info) {
             if (knol.is_determined) continue;
             // TODO: possibly still valuable to ask?
@@ -822,7 +826,7 @@ public:
     }
 
     int get_index_for_hint(const std::vector<CardPossibilityTable>& info, const GameView& view) const {
-        std::vector<std::pair<int, int>> scores;
+        fixed_capacity_vector<std::pair<int, int>, MAXHANDSIZE> scores;
         for (int i=0; i < (int)info.size(); ++i) {
             auto&& card_table = info[i];
             int score = this->get_hint_index_score(card_table, view);
@@ -909,14 +913,6 @@ public:
         }
 
         return (!may_be_all_one_color && !may_be_all_one_number) ? 4 : 3;
-    }
-
-    std::vector<int> get_other_players_starting_after(int player) const {
-        std::vector<int> result;
-        for (int i=0; i < numPlayers - 1; ++i) {
-            result.push_back((player + 1 + i) % numPlayers);
-        }
-        return result;
     }
 
     Hinted get_best_hint_of_options(const Hanabi::Server& server, int hint_player, std::set<Hinted> hint_option_set) const {
@@ -1080,7 +1076,7 @@ public:
 
         auto private_info = this->get_private_info(server);
 
-        std::vector<std::pair<int, CardPossibilityTable>> playable_cards;
+        fixed_capacity_vector<std::pair<int, CardPossibilityTable>, MAXHANDSIZE> playable_cards;
         for (int i=0; i < private_info.size(); ++i) {
             const auto& card_table = private_info[i];
             if (card_table.probability_is_playable(view) == 1.0) {
@@ -1117,7 +1113,7 @@ public:
         if (view.lives_remaining > 1 &&
             view.discard_size <= discard_threshold)
         {
-            std::vector<std::tuple<int, CardPossibilityTable, double>> risky_playable_cards;
+            fixed_capacity_vector<std::tuple<int, CardPossibilityTable, double>, MAXHANDSIZE> risky_playable_cards;
             for (int i=0; i < private_info.size(); ++i) {
                 const auto& card_table = private_info[i];
                 // card is either playable or dead
