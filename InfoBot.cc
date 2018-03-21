@@ -293,19 +293,27 @@ public:
     double probability_is_dispensable(const GameView& view) const {
         return this->probability_of_predicate([&](Card card) { return view.is_dispensable(card); });
     }
-    std::vector<Card> get_possibilities() const {
-        std::vector<Card> result;
+    template<class F>
+    void for_each_possibility(F fn) const {
         for (Color k = RED; k <= BLUE; ++k) {
             for (int v = 1; v <= 5; ++v) {
                 if (counts_[k][v] != 0) {
-                    result.push_back(Card(k, v));
+                    fn(Card(k, v));
                 }
             }
         }
+    }
+    std::vector<Card> get_possibilities() const {
+        std::vector<Card> result;
+        this->for_each_possibility([&](Card card) {
+            result.push_back(card);
+        });
         return result;
     }
     bool is_determined() const {
-        return get_possibilities().size() == 1;
+        int count = 0;
+        this->for_each_possibility([&](Card) { ++count; });
+        return count == 1;
     }
     bool color_determined() const {
         bool found = false;
@@ -390,7 +398,7 @@ struct ModulusInformation {
     }
 };
 
-class Question {
+class QuestionImpl {
 public:
     // how much info does this question ask for?
     virtual int info_amount() const = 0;
@@ -398,7 +406,15 @@ public:
     virtual int answer(const std::vector<Card>&, const GameView&) const = 0;
     // process the answer to this question, updating card info
     virtual void acknowledge_answer(int answer, std::vector<CardPossibilityTable>&, const GameView&) const = 0;
-    virtual ~Question() = default;
+    virtual ~QuestionImpl() = default;
+};
+
+class Question {
+    std::unique_ptr<QuestionImpl> impl;
+public:
+    int info_amount() const { return impl->info_amount(); }
+    int answer(const std::vector<Card>& hand, const GameView& view) const { return impl->answer(hand, view); }
+    void acknowledge_answer(int answer, std::vector<CardPossibilityTable>& info, const GameView& view) const { return impl->acknowledge_answer(answer, info, view); }
 
     ModulusInformation answer_info(const std::vector<Card>& hand, const GameView& view) const {
         return ModulusInformation(
@@ -411,9 +427,15 @@ public:
         assert(this->info_amount() == answer.modulus);
         this->acknowledge_answer(answer.value, hand_info, view);
     }
+
+    static Question IsPlayable(int i);
+    static Question CardPossibilityPartition(
+        int index, int max_n_partitions,
+        const CardPossibilityTable& card_table, const GameView& view
+    );
 };
 
-class IsPlayable : public Question {
+class IsPlayable : public QuestionImpl {
     int index;
 public:
     explicit IsPlayable(int i) : index(i) {}
@@ -429,18 +451,17 @@ public:
     }
     void acknowledge_answer(int answer, std::vector<CardPossibilityTable>& hand_info, const GameView& view) const override {
         auto& card_table = hand_info[this->index];
-        auto possible = card_table.get_possibilities();
-        for (auto&& card : possible) {
+        card_table.for_each_possibility([&](Card card) {
             if (view.is_playable(card)) {
                 if (answer == 0) { card_table.mark_false(card); }
             } else {
                 if (answer == 1) { card_table.mark_false(card); }
             }
-        }
+        });
     }
 };
 
-class CardPossibilityPartition : public Question {
+class CardPossibilityPartition : public QuestionImpl {
     int index;
     int n_partitions;
     std::map<Card, int, CardLessThan> partition;
@@ -460,7 +481,7 @@ public:
             effective_max -= 1;
         }
 
-        for (auto&& card : card_table.get_possibilities()) {
+        card_table.for_each_possibility([&](Card card) {
             if (!view.is_dead(card)) {
                 partition.emplace(card, cur_block);
                 cur_block = (cur_block + 1) % effective_max;
@@ -468,14 +489,14 @@ public:
                     n_partitions += 1;
                 }
             }
-        }
+        });
 
         if (has_dead) {
-            for (auto&& card : card_table.get_possibilities()) {
+            card_table.for_each_possibility([&](Card card) {
                 if (view.is_dead(card)) {
                     partition.emplace(card, n_partitions);
                 }
-            }
+            });
             n_partitions += 1;
         }
 
@@ -491,14 +512,29 @@ public:
     }
     void acknowledge_answer(int answer, std::vector<CardPossibilityTable>& hand_info, const GameView&) const override {
         auto& card_table = hand_info[this->index];
-        std::vector<Card> possible = card_table.get_possibilities();
-        for (const Card& card : possible) {
+        card_table.for_each_possibility([&](Card card) {
             if (this->partition.at(card) != answer) {
                 card_table.mark_false(card);
             }
-        }
+        });
     }
 };
+
+Question Question::IsPlayable(int i)
+{
+    Question result;
+    result.impl = std::make_unique<::IsPlayable>(i);
+    return result;
+}
+
+Question Question::CardPossibilityPartition(
+    int index, int max_n_partitions,
+    const CardPossibilityTable& card_table, const GameView& view)
+{
+    Question result;
+    result.impl = std::make_unique<::CardPossibilityPartition>(index, max_n_partitions, card_table, view);
+    return result;
+}
 
 struct AugmentedCardPossibilities {
     CardPossibilityTable card_table;
@@ -527,11 +563,11 @@ public:
         }
     }
 
-    std::vector<std::shared_ptr<Question>> get_questions(int total_info, const GameView& view, const std::vector<CardPossibilityTable>& hand_info) const {
-        std::vector<std::shared_ptr<Question>> questions;
+    std::vector<Question> get_questions(int total_info, const GameView& view, const std::vector<CardPossibilityTable>& hand_info) const {
+        std::vector<Question> questions;
         int info_remaining = total_info;
-        auto add_question = [&](std::shared_ptr<Question> question) {
-            info_remaining /= question->info_amount();
+        auto add_question = [&](Question question) {
+            info_remaining /= question.info_amount();
             questions.push_back(std::move(question));
             return info_remaining <= 1;
         };
@@ -568,8 +604,8 @@ public:
             });
 
             for (const auto& knol : ask_play) {
-                auto q = std::make_shared<IsPlayable>(knol.i);
-                if (add_question(q)) {
+                auto q = Question::IsPlayable(knol.i);
+                if (add_question(std::move(q))) {
                     return questions;
                 }
             }
@@ -591,8 +627,8 @@ public:
         });
 
         for (const auto& knol : ask_partition) {
-            auto q = std::make_shared<CardPossibilityPartition>(knol.i, info_remaining, knol.card_table, view);
-            if (add_question(q)) {
+            auto q = Question::CardPossibilityPartition(knol.i, info_remaining, knol.card_table, view);
+            if (add_question(std::move(q))) {
                 return questions;
             }
         }
@@ -607,7 +643,7 @@ public:
         auto hand = view.get_hand(player);
         ModulusInformation answer = ModulusInformation::none();
         for (auto&& question : questions) {
-            auto new_answer_info = question->answer_info(hand, view);
+            auto new_answer_info = question.answer_info(hand, view);
             answer.combine(new_answer_info);
         }
         answer.cast_up(total_info);
@@ -628,13 +664,13 @@ public:
         auto& hand_info = this->public_info[me];
         auto questions = this->get_questions(hint.modulus, this->last_view, hand_info);
         int product = 1;
-        for (auto&& b : questions) product *= b->info_amount();
+        for (auto&& b : questions) product *= b.info_amount();
         hint.cast_down(product);
         {
             auto view = this->last_view;
-            for (const auto& question : questions) {
-                auto answer_info = hint.split(question->info_amount());
-                question->acknowledge_answer_info(answer_info, hand_info, view);
+            for (auto&& question : questions) {
+                auto answer_info = hint.split(question.info_amount());
+                question.acknowledge_answer_info(answer_info, hand_info, view);
             }
         }
     }
@@ -652,8 +688,8 @@ public:
                 auto hand = view.get_hand(player);
                 auto questions = this->get_questions(hint.modulus, view, hand_info);
                 for (auto&& question : questions) {
-                    auto answer = question->answer(hand, view);
-                    question->acknowledge_answer(answer, hand_info, view);
+                    auto answer = question.answer(hand, view);
+                    question.acknowledge_answer(answer, hand_info, view);
                 }
             }
         }
@@ -814,8 +850,8 @@ public:
         int total_info  = 3 * (view.num_players - 1);
         auto questions = this->get_questions(total_info, view, hand_info);
         for (auto&& question : questions) {
-            auto answer = question->answer(hand, view);
-            question->acknowledge_answer(answer, hand_info, view);
+            auto answer = question.answer(hand, view);
+            question.acknowledge_answer(answer, hand_info, view);
         }
 
         for (auto&& hinted : hint_option_set) {
