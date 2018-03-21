@@ -8,6 +8,8 @@
 #include <set>
 #include <vector>
 
+#define MAXPLAYERS 10  // use statically sized arrays instead of vector in some places
+
 using Hanabi::Card;
 using Hanabi::CardIndices;
 using Hanabi::Color;
@@ -153,12 +155,6 @@ public:
             return this->discard.remaining(card) != 1;
         }
     }
-
-    std::vector<int> get_players() const {
-        std::vector<int> result;
-        for (int i=0; i < num_players; ++i) result.push_back(i);
-        return result;
-    }
 };
 
 class OwnedGameView : public GameView {
@@ -166,7 +162,8 @@ class OwnedGameView : public GameView {
 public:
     explicit OwnedGameView(const GameView& view, const Hanabi::Server& server) : GameView(view), server(&server) {}
 
-    std::vector<Card> get_hand(int p) const {
+    const std::vector<Card>& get_hand(int p) const {
+        static_assert(std::is_same<const std::vector<Card>&, decltype(server->handOfPlayer(p))>::value, "");
         return server->handOfPlayer(p);
     }
 
@@ -640,7 +637,7 @@ public:
         assert(player != me);
         const auto& hand_info = this->public_info[player];
         auto questions = this->get_questions(total_info, view, hand_info);
-        auto hand = view.get_hand(player);
+        const auto& hand = view.get_hand(player);
         ModulusInformation answer = ModulusInformation::none();
         for (auto&& question : questions) {
             auto new_answer_info = question.answer_info(hand, view);
@@ -652,7 +649,7 @@ public:
 
     ModulusInformation get_hint_sum_info(int total_info, const OwnedGameView& view) const {
         ModulusInformation sum_info(total_info, 0);
-        for (int player : view.get_players()) {
+        for (int player = 0; player < numPlayers; ++player) {
             if (player == me) continue;
             auto answer = this->get_hint_info_for_player(player, total_info, view);
             sum_info.add(answer);
@@ -677,7 +674,7 @@ public:
 
     void update_from_hint_sum(ModulusInformation hint, const OwnedGameView& view) {
         int hinter = view.player;
-        for (int player : view.get_players()) {
+        for (int player = 0; player < numPlayers; ++player) {
             if (player != hinter && player != this->me) {
                 if (true) {
                     auto hint_info = this->get_hint_info_for_player(player, hint.modulus, view);
@@ -685,7 +682,7 @@ public:
                 }
 
                 auto& hand_info = this->public_info[player];
-                auto hand = view.get_hand(player);
+                const auto& hand = view.get_hand(player);
                 auto questions = this->get_questions(hint.modulus, view, hand_info);
                 for (auto&& question : questions) {
                     auto answer = question.answer(hand, view);
@@ -710,7 +707,7 @@ public:
     double get_play_score(const OwnedGameView& view, const Card& card) {
         int num_with = 1;
         if (view.deck_size > 0) {
-            for (int player : view.get_players()) {
+            for (int player = 0; player < numPlayers; ++player) {
                 if (player != this->me) {
                     if (view.has_card(player, card)) {
                         num_with += 1;
@@ -784,7 +781,7 @@ public:
 
         // note: other_player could be player, as well
         // in particular, we will decrement the newly drawn card
-        for (int other_player : view.get_players()) {
+        for (int other_player = 0; other_player < numPlayers; ++other_player) {
             auto& info = this->public_info[other_player];
             for (auto& card_table : info) {
                 card_table.decrement_weight_if_possible(card);
@@ -955,11 +952,12 @@ public:
         // TODO: make it so space of hints is larger when there is
         // knowledge about the cards?
 
-        std::vector<int> info_per_player;
+        int info_per_player[MAXPLAYERS];
         int total_info = 0;
-        for (int player : this->get_other_players_starting_after(this->me)) {
+        for (int i = 0; i < numPlayers - 1; ++i) {
+            int player = (this->me + 1 + i) % numPlayers;
             int x = this->get_info_per_player(player);
-            info_per_player.push_back(x);
+            info_per_player[i] = x;
             total_info += x;
         }
         auto hint_info = this->get_hint_sum_info(total_info, view);
@@ -1025,17 +1023,16 @@ public:
     }
 
     void infer_from_hint(const Hint& hint, int hinter, CardIndices card_indices, const OwnedGameView& view) {
-        std::vector<int> info_per_player;
+        int info_per_player[MAXPLAYERS];
         int total_info = 0;
-        for (int player : this->get_other_players_starting_after(hinter)) {
+        for (int i = 0; i < numPlayers - 1; ++i) {
+            int player = (hinter + 1 + i) % numPlayers;
             int x = this->get_info_per_player(player);
-            info_per_player.push_back(x);
+            info_per_player[i] = x;
             total_info += x;
         }
 
-        int n = numPlayers;
-
-        int player_amt = (n + hint.to - hinter - 1) % n;
+        int player_amt = (numPlayers + hint.to - hinter - 1) % numPlayers;
 
         int amt_from_prev_players = 0;
         for (int i=0; i < player_amt; ++i) {
