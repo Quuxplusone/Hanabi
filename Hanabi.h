@@ -114,6 +114,9 @@ public:
     /* Returns the number of players in the game. */
     int numPlayers() const;
 
+    /* Returns the starting hand size for this game. */
+    int handSize() const;
+
     /* Returns the index of the player who is currently
      * querying the server. */
     int whoAmI() const;
@@ -185,9 +188,8 @@ public:
      * unless no cards remain in the draw pile, in which
      * case the player's new hand will have only 3 cards.
      * Adds a hint-stone back to the pool, if possible.
-     * Returns the identity of the discarded card.
      */
-    Card pleaseDiscard(int index);
+    void pleaseDiscard(int index);
 
     /* Try to play the card at the given index. This action
      * may succeed (incrementing the appropriate pile) or fail
@@ -196,11 +198,8 @@ public:
      * and a new card drawn into index 3, unless no cards
      * remain in the draw pile, in which case the player's
      * new hand will have only 3 cards.
-     * Returns the identity of the played/discarded card.
-     * If you want to know whether the play was successful,
-     * just examine server.mulligansRemaining() before and
-     * after the play. */
-    Card pleasePlay(int index);
+     */
+    void pleasePlay(int index);
 
     /* Give a hint. The named player (who must not be the
      * active player) must have at least one card of the

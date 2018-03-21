@@ -245,6 +245,11 @@ int Server::numPlayers() const
     return numPlayers_;
 }
 
+int Server::handSize() const
+{
+    return (numPlayers_ <= 3) ? 5 : 4;
+}
+
 int Server::whoAmI() const
 {
     assert(0 <= observingPlayer_ && observingPlayer_ < numPlayers_);
@@ -325,7 +330,7 @@ int Server::cardsRemainingInDeck() const
     return deck_.size();
 }
 
-Card Server::pleaseDiscard(int index)
+void Server::pleaseDiscard(int index)
 {
     assert(0 <= activePlayer_ && activePlayer_ < numPlayers_);
     HANABI_SERVER_ASSERT(movesFromActivePlayer_ < 1, "bot attempted to move twice");
@@ -370,11 +375,9 @@ Card Server::pleaseDiscard(int index)
 
     regainHintStoneIfPossible_();
     movesFromActivePlayer_ = 1;
-
-    return discardedCard;
 }
 
-Card Server::pleasePlay(int index)
+void Server::pleasePlay(int index)
 {
     assert(0 <= activePlayer_ && activePlayer_ < hands_.size());
     assert(players_.size() == hands_.size());
@@ -437,7 +440,6 @@ Card Server::pleasePlay(int index)
     this->logPiles_();
 
     movesFromActivePlayer_ = 1;
-    return selectedCard;
 }
 
 void Server::pleaseGiveColorHint(int to, Color color)
