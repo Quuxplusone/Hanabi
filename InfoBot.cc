@@ -277,7 +277,7 @@ public:
         if (count) count -= 1;
     }
     template<class F>
-    double weighted_score(F score_fn) const {
+    double weighted_score(const F& score_fn) const {
         double total_score = 0;
         double total_weight = 0;
         for (Color k = RED; k <= BLUE; ++k) {
@@ -299,7 +299,7 @@ public:
         return this->weighted_score([](const Card&) { return 1.0; });
     }
     template<class F>
-    double probability_of_predicate(F predicate) const {
+    double probability_of_predicate(const F& predicate) const {
         return this->weighted_score([&](Card card) { return predicate(card) ? 1.0 : 0.0; });
     }
     double probability_is_dead(const GameView& view) const {
@@ -312,7 +312,7 @@ public:
         return this->probability_of_predicate([&](Card card) { return view.is_dispensable(card); });
     }
     template<class F>
-    void for_each_possibility(F fn) const {
+    void for_each_possibility(const F& fn) const {
         for (Color k = RED; k <= BLUE; ++k) {
             for (int v = 1; v <= 5; ++v) {
                 if (counts_[k][v] != 0) {
@@ -321,17 +321,18 @@ public:
             }
         }
     }
-    std::vector<Card> get_possibilities() const {
-        std::vector<Card> result;
-        this->for_each_possibility([&](Card card) {
-            result.push_back(card);
-        });
-        return result;
-    }
     bool is_determined() const {
         int count = 0;
         this->for_each_possibility([&](Card) { ++count; });
         return count == 1;
+    }
+    template<class F>
+    void if_is_determined(const F& fn) const {
+        int count = 0;
+        this->for_each_possibility([&](Card) { ++count; });
+        if (count == 1) {
+            this->for_each_possibility(fn);
+        }
     }
     bool color_determined() const {
         bool found = false;
@@ -757,9 +758,7 @@ public:
             if (card_table.probability_is_dead(view) == 1.0) {
                 useless.insert(i);
             } else {
-                auto poss = card_table.get_possibilities();
-                if (poss.size() == 1) {
-                    Card card = poss[0];
+                card_table.if_is_determined([&](Card card) {
                     if (seen.at(card) != 0) {
                         // found a duplicate card
                         useless.insert(i);
@@ -767,7 +766,7 @@ public:
                     } else {
                         seen.emplace(card, i + 1);
                     }
-                }
+                });
             }
         }
         std::vector<int> useless_vec;
