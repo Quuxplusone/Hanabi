@@ -602,7 +602,7 @@ public:
 
     ModulusInformation get_hint_info_for_player(int player, int total_info, const OwnedGameView& view) const {
         assert(player != me);
-        const auto& hand_info = get_player_public_info(player);
+        const auto& hand_info = this->public_info[player];
         auto questions = this->get_questions(total_info, view, hand_info);
         auto hand = view.get_hand(player);
         ModulusInformation answer = ModulusInformation::none();
@@ -625,11 +625,11 @@ public:
     }
 
     void infer_own_from_hint_sum(ModulusInformation hint) {
-        auto questions = this->get_questions(hint.modulus, this->last_view, this->get_my_public_info());
+        auto& hand_info = this->public_info[me];
+        auto questions = this->get_questions(hint.modulus, this->last_view, hand_info);
         int product = 1;
         for (auto&& b : questions) product *= b->info_amount();
         hint.cast_down(product);
-        auto& hand_info = this->get_player_public_info_mut(me);
         {
             auto view = this->last_view;
             for (const auto& question : questions) {
@@ -648,7 +648,7 @@ public:
                     hint.subtract(hint_info);
                 }
 
-                auto& hand_info = this->get_player_public_info_mut(player);
+                auto& hand_info = this->public_info[player];
                 auto hand = view.get_hand(player);
                 auto questions = this->get_questions(hint.modulus, view, hand_info);
                 for (auto&& question : questions) {
@@ -715,20 +715,8 @@ public:
         return useless_vec;
     }
 
-    const std::vector<CardPossibilityTable>& get_my_public_info() const {
-        return this->public_info.at(this->me);
-    }
-
-    const std::vector<CardPossibilityTable>& get_player_public_info(int player) const {
-        return this->public_info.at(player);
-    }
-
-    std::vector<CardPossibilityTable>& get_player_public_info_mut(int player) {
-        return this->public_info.at(player);
-    }
-
     void update_public_info_for_hint(const Hint& hint, CardIndices card_indices) {
-        std::vector<CardPossibilityTable>& info = this->public_info.at(hint.to);
+        std::vector<CardPossibilityTable>& info = this->public_info[hint.to];
 
         // info.update_for_hint(hint, matches);
         if (hint.kind == Hinted::COLOR) {
@@ -746,7 +734,7 @@ public:
 
     void update_public_info_for_discard_or_play(GameView& view, int player, int index, Card card) {
         {
-            std::vector<CardPossibilityTable>& info = this->public_info.at(player);
+            std::vector<CardPossibilityTable>& info = this->public_info[player];
             assert(info[index].is_possible(card));
             info.erase(info.begin() + index);
 
@@ -761,7 +749,7 @@ public:
         // note: other_player could be player, as well
         // in particular, we will decrement the newly drawn card
         for (int other_player : view.get_players()) {
-            auto& info = this->public_info.at(other_player);
+            auto& info = this->public_info[other_player];
             for (auto& card_table : info) {
                 card_table.decrement_weight_if_possible(card);
             }
@@ -771,7 +759,7 @@ public:
     }
 
     std::vector<CardPossibilityTable> get_private_info(const Hanabi::Server& server) const {
-        std::vector<CardPossibilityTable> info = this->get_my_public_info();
+        std::vector<CardPossibilityTable> info = this->public_info[this->me];
         for (auto& card_table : info) {
             for (int p=0; p < server.numPlayers(); ++p) {
                 if (p == me) continue;
@@ -812,12 +800,17 @@ public:
         return scores[0].second;
     }
 
-    // how good is it to give this hint to this player?
-    double hint_goodness(const Hanabi::Server& server, const Hinted& hinted, int hint_player, const GameView& view) const {
+    // how good is it to give each of these hints to this player?
+    std::vector<std::pair<double, Hinted>>
+    hint_goodness_for_each(
+        const Hanabi::Server& server, const std::set<Hinted>& hint_option_set,
+        int hint_player, const GameView& view) const
+    {
+        std::vector<std::pair<double, Hinted>> result;
         auto hand = server.handOfPlayer(hint_player);
 
         // get post-hint hand_info
-        auto hand_info = this->get_player_public_info(hint_player);
+        auto hand_info = this->public_info[hint_player];
         int total_info  = 3 * (view.num_players - 1);
         auto questions = this->get_questions(total_info, view, hand_info);
         for (auto&& question : questions) {
@@ -825,39 +818,43 @@ public:
             question->acknowledge_answer(answer, hand_info, view);
         }
 
-        double goodness = 1.0;
-        for (int i=0; i < (int)hand_info.size(); ++i) {
-            auto& card_table = hand_info[i];
-            auto card = hand[i];
-            if (card_table.probability_is_dead(view) == 1.0) {
-                continue;
+        for (auto&& hinted : hint_option_set) {
+            auto hypothetical_hand_info = hand_info;
+            double goodness = 1.0;
+            for (int i=0; i < (int)hand_info.size(); ++i) {
+                auto& card_table = hypothetical_hand_info[i];
+                auto card = hand[i];
+                if (card_table.probability_is_dead(view) == 1.0) {
+                    continue;
+                }
+                if (card_table.is_determined()) {
+                    continue;
+                }
+                auto old_weight = card_table.total_weight();
+                if (hinted.kind == Hinted::COLOR) {
+                    card_table.mark_color(hinted.color, hinted.color == card.color);
+                } else if (hinted.kind == Hinted::VALUE) {
+                    card_table.mark_value(hinted.value, hinted.value == card.value);
+                } else {
+                    assert(false);
+                }
+                auto new_weight = card_table.total_weight();
+                assert(new_weight <= old_weight);
+                double bonus = (
+                    card_table.is_determined() ? 2 :
+                    card_table.probability_is_dead(view) == 1.0 ? 2 :
+                    1
+                );
+                goodness *= bonus * (old_weight / new_weight);
             }
-            if (card_table.is_determined()) {
-                continue;
-            }
-            auto old_weight = card_table.total_weight();
-            if (hinted.kind == Hinted::COLOR) {
-                card_table.mark_color(hinted.color, hinted.color == card.color);
-            } else if (hinted.kind == Hinted::VALUE) {
-                card_table.mark_value(hinted.value, hinted.value == card.value);
-            } else {
-                assert(false);
-            }
-            auto new_weight = card_table.total_weight();
-            assert(new_weight <= old_weight);
-            double bonus = (
-                card_table.is_determined() ? 2 :
-                card_table.probability_is_dead(view) == 1.0 ? 2 :
-                1
-            );
-            goodness *= bonus * (old_weight / new_weight);
+            result.emplace_back(goodness, hinted);
         }
-        return goodness;
+        return result;
     }
 
     // Returns the number of ways to hint the player.
     int get_info_per_player(int player) const {
-        const auto& info = this->get_player_public_info(player);
+        const auto& info = this->public_info[player];
 
         // Determine if both:
         //  - it is public that there are at least two colors
@@ -893,26 +890,17 @@ public:
     Hinted get_best_hint_of_options(const Hanabi::Server& server, int hint_player, std::set<Hinted> hint_option_set) const {
         const auto& view = this->last_view;
 
+        assert(!hint_option_set.empty());
+
         // using hint goodness barely helps
-        std::vector<std::pair<double, Hinted>> hint_options;
-        for (auto&& hinted : hint_option_set) {
-            double goodness = this->hint_goodness(server, hinted, hint_player, view);
-            hint_options.emplace_back(goodness, hinted);
-        }
+        std::vector<std::pair<double, Hinted>> hint_options =
+            this->hint_goodness_for_each(server, hint_option_set, hint_player, view);
 
         std::sort(hint_options.begin(), hint_options.end(), [](const auto& h1, const auto& h2) {
             return h1.first > h2.first;
         });
 
-        if (hint_options.empty()) {
-            // NOTE: Technically possible, but never happens
-        } else {
-            if (hint_options.size() > 1) {
-                // debug!("Choosing amongst hint options: {:?}", hint_options);
-            }
-        }
-
-        return std::move(hint_options[0].second);
+        return hint_options[0].second;
     }
 
     void get_hint(Hanabi::Server& server) const {
@@ -952,7 +940,7 @@ public:
         assert(hint_player != this->me);
 
         const auto& hand = view.get_hand(hint_player);
-        int card_index = this->get_index_for_hint(this->get_player_public_info(hint_player), view);
+        int card_index = this->get_index_for_hint(this->public_info[hint_player], view);
         const auto& hint_card = hand[card_index];
 
         Hinted hinted = (hint_info_we_can_give_to_this_player == 3) ? (
@@ -1019,7 +1007,7 @@ public:
         }
         int hint_info_we_can_give_to_this_player = info_per_player[player_amt];
 
-        int card_index = this->get_index_for_hint(this->get_player_public_info(hint.to), this->last_view);
+        int card_index = this->get_index_for_hint(this->public_info[hint.to], this->last_view);
         int hint_type;
         if (hint_info_we_can_give_to_this_player == 3) {
             if (card_indices.contains(card_index)) {
@@ -1126,7 +1114,7 @@ public:
             return this->get_hint(server);
         }
 
-        auto public_useless_indices = this->find_useless_cards(view, this->get_my_public_info());
+        auto public_useless_indices = this->find_useless_cards(view, this->public_info[this->me]);
         auto useless_indices = this->find_useless_cards(view, private_info);
 
         if (view.discard_size <= discard_threshold) {
@@ -1205,7 +1193,7 @@ public:
         assert(this->me == server.whoAmI());
         OwnedGameView view(this->last_view, server);
         auto known_useless_indices = this->find_useless_cards(
-            this->last_view, this->get_player_public_info(from)
+            this->last_view, this->public_info[from]
         );
         if (known_useless_indices.size() > 1) {
             // unwrap is safe because *if* a discard happened, and there were known
