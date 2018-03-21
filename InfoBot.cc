@@ -415,6 +415,8 @@ public:
 
 class IsPlayable : public Question {
     int index;
+public:
+    explicit IsPlayable(int i) : index(i) {}
 
     int info_amount() const override { return 2; }
     int answer(const std::vector<Card>& hand, const GameView& view) const override {
@@ -436,15 +438,12 @@ class IsPlayable : public Question {
             }
         }
     }
-public:
-    explicit IsPlayable(int i) : index(i) {}
 };
 
 class CardPossibilityPartition : public Question {
     int index;
     int n_partitions;
     std::map<Card, int, CardLessThan> partition;
-
 public:
     explicit CardPossibilityPartition(
         int index, int max_n_partitions, const CardPossibilityTable& card_table, const GameView& view)
@@ -485,7 +484,6 @@ public:
         this->partition = std::move(partition);
     }
 
-private:
     int info_amount() const override { return this->n_partitions; }
     int answer(const std::vector<Card>& hand, const GameView&) const override {
         const auto& card = hand[this->index];
@@ -893,7 +891,7 @@ public:
 
     std::vector<int> get_other_players_starting_after(int player) const {
         std::vector<int> result;
-        for (int i=0; i < numPlayers; ++i) {
+        for (int i=0; i < numPlayers - 1; ++i) {
             result.push_back((player + 1 + i) % numPlayers);
         }
         return result;
@@ -958,6 +956,7 @@ public:
         int hint_info_we_can_give_to_this_player = info_per_player[player_amt];
 
         int hint_player = (this->me + 1 + player_amt) % numPlayers;
+        assert(hint_player != this->me);
 
         const auto& hand = view.get_hand(hint_player);
         int card_index = this->get_index_for_hint(this->get_player_public_info(hint_player), view);
@@ -989,7 +988,7 @@ public:
                 }
                 return this->get_best_hint_of_options(server, hint_player, hint_option_set);
             }() :
-            (hint_type == 2) ? [&]() -> Hinted {
+            (hint_type == 3) ? [&]() -> Hinted {
                     // Any color hint for a card other than the first
                 std::set<Hinted> hint_option_set;
                 for (auto&& card : hand) {
@@ -1008,7 +1007,7 @@ public:
         }
     }
 
-    void infer_from_hint(const Hint& hint, int hinter, CardIndices result, const OwnedGameView& view) {
+    void infer_from_hint(const Hint& hint, int hinter, CardIndices card_indices, const OwnedGameView& view) {
         std::vector<int> info_per_player;
         int total_info = 0;
         for (int player : this->get_other_players_starting_after(hinter)) {
@@ -1030,7 +1029,7 @@ public:
         int card_index = this->get_index_for_hint(this->get_player_public_info(hint.to), this->last_view);
         int hint_type;
         if (hint_info_we_can_give_to_this_player == 3) {
-            if (result[card_index]) {
+            if (card_indices.contains(card_index)) {
                 if (hint.kind == Hinted::VALUE) {
                     hint_type = 0;
                 } else {
@@ -1040,7 +1039,7 @@ public:
                 hint_type = 2;
             }
         } else {
-            if (result[card_index]) {
+            if (card_indices.contains(card_index)) {
                 if (hint.kind == Hinted::VALUE) {
                     hint_type = 0;
                 } else {
@@ -1130,6 +1129,10 @@ public:
             }
         }
 
+        if (!server.discardingIsAllowed()) {
+            return this->get_hint(server);
+        }
+
         auto public_useless_indices = this->find_useless_cards(view, this->get_my_public_info());
         auto useless_indices = this->find_useless_cards(view, private_info);
 
@@ -1188,6 +1191,7 @@ public:
 
     void pleaseObserveColorHint(const Hanabi::Server& server, int from, int to, Color color, CardIndices card_indices) override
     {
+        assert(this->me == server.whoAmI());
         OwnedGameView view(this->last_view, server);
         Hint hint(Hinted::COLOR, to, int(color));
         this->infer_from_hint(hint, from, card_indices, view);
@@ -1196,6 +1200,7 @@ public:
 
     void pleaseObserveValueHint(const Hanabi::Server& server, int from, int to, Value value, CardIndices card_indices) override
     {
+        assert(this->me == server.whoAmI());
         OwnedGameView view(this->last_view, server);
         Hint hint(Hinted::VALUE, to, int(value));
         this->infer_from_hint(hint, from, card_indices, view);
@@ -1204,6 +1209,7 @@ public:
 
     void pleaseObserveBeforeDiscard(const Hanabi::Server& server, int from, int card_index) override
     {
+        assert(this->me == server.whoAmI());
         OwnedGameView view(this->last_view, server);
         auto known_useless_indices = this->find_useless_cards(
             this->last_view, this->get_player_public_info(from)
@@ -1226,11 +1232,13 @@ public:
 
     void pleaseObserveBeforePlay(const Hanabi::Server& server, int from, int card_index) override
     {
+        assert(this->me == server.whoAmI());
         this->update_public_info_for_discard_or_play(this->last_view, from, card_index, server.activeCard());
     }
 
     void pleaseObserveBeforeMove(const Hanabi::Server& server) override
     {
+        assert(this->me == server.whoAmI());
         this->last_view = GameView(server);
     }
 };
