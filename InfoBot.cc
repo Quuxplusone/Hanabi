@@ -378,6 +378,8 @@ public:
     }
 };
 
+using HandInfo = std::vector<CardPossibilityTable>;
+
 struct ModulusInformation {
     int modulus;
     int value;
@@ -438,7 +440,7 @@ public:
     // get the answer to this question, given cards
     virtual int answer(const std::vector<Card>&, const GameView&) const = 0;
     // process the answer to this question, updating card info
-    virtual void acknowledge_answer(int answer, std::vector<CardPossibilityTable>&, const GameView&) const = 0;
+    virtual void acknowledge_answer(int answer, HandInfo&, const GameView&) const = 0;
     virtual ~QuestionImpl() = default;
 };
 
@@ -447,7 +449,7 @@ class Question {
 public:
     int info_amount() const { return impl->info_amount(); }
     int answer(const std::vector<Card>& hand, const GameView& view) const { return impl->answer(hand, view); }
-    void acknowledge_answer(int answer, std::vector<CardPossibilityTable>& info, const GameView& view) const { return impl->acknowledge_answer(answer, info, view); }
+    void acknowledge_answer(int answer, HandInfo& info, const GameView& view) const { return impl->acknowledge_answer(answer, info, view); }
 
     ModulusInformation answer_info(const std::vector<Card>& hand, const GameView& view) const {
         return ModulusInformation(
@@ -456,7 +458,7 @@ public:
         );
     }
 
-    void acknowledge_answer_info(ModulusInformation answer, std::vector<CardPossibilityTable>& hand_info, const GameView& view) const {
+    void acknowledge_answer_info(ModulusInformation answer, HandInfo& hand_info, const GameView& view) const {
         assert(this->info_amount() == answer.modulus);
         this->acknowledge_answer(answer.value, hand_info, view);
     }
@@ -482,7 +484,7 @@ public:
             return 0;
         }
     }
-    void acknowledge_answer(int answer, std::vector<CardPossibilityTable>& hand_info, const GameView& view) const override {
+    void acknowledge_answer(int answer, HandInfo& hand_info, const GameView& view) const override {
         auto& card_table = hand_info[this->index];
         card_table.for_each_possibility([&](Card card) {
             if (view.is_playable(card)) {
@@ -552,7 +554,7 @@ public:
         const auto& card = hand[this->index];
         return this->partition.at(card);
     }
-    void acknowledge_answer(int answer, std::vector<CardPossibilityTable>& hand_info, const GameView&) const override {
+    void acknowledge_answer(int answer, HandInfo& hand_info, const GameView&) const override {
         auto& card_table = hand_info[this->index];
         card_table.for_each_possibility([&](Card card) {
             if (this->partition.at(card) != answer) {
@@ -592,7 +594,7 @@ struct AugmentedCardPossibilities {
 class InfoBotImpl : public InfoBot {
     int me;
     int numPlayers;
-    std::vector<std::vector<CardPossibilityTable>> public_info;
+    std::vector<HandInfo> public_info;
     CardCounts public_counts; // what any newly drawn card could be
     GameView last_view; // the view on the previous turn
 
@@ -601,11 +603,11 @@ public:
         me(index), numPlayers(numPlayers), last_view(numPlayers, handSize)
     {
         for (int i=0; i < numPlayers; ++i) {
-            this->public_info.emplace_back(std::vector<CardPossibilityTable>(handSize));
+            this->public_info.emplace_back(HandInfo(handSize));
         }
     }
 
-    std::vector<Question> get_questions(int total_info, const GameView& view, const std::vector<CardPossibilityTable>& hand_info) const {
+    std::vector<Question> get_questions(int total_info, const GameView& view, const HandInfo& hand_info) const {
         std::vector<Question> questions;
         int info_remaining = total_info;
         auto add_question = [&](Question question) {
@@ -631,7 +633,7 @@ public:
         }
 
         if (known_playable == 0) {
-            std::vector<AugmentedCardPossibilities> ask_play;
+            fixed_capacity_vector<AugmentedCardPossibilities, MAXHANDSIZE> ask_play;
             for (auto&& knol : augmented_hand_info) {
                 if (knol.is_determined) continue;
                 if (knol.p_dead == 1.0) continue;
@@ -763,7 +765,7 @@ public:
         return (10.0 - int(card.value)) / num_with;
     }
 
-    std::vector<int> find_useless_cards(const GameView& view, const std::vector<CardPossibilityTable>& hand) {
+    std::vector<int> find_useless_cards(const GameView& view, const HandInfo& hand) {
         fixed_capacity_set<int, MAXHANDSIZE> useless;
         CardToIntMap seen;
 
@@ -792,7 +794,7 @@ public:
     }
 
     void update_public_info_for_hint(const Hint& hint, CardIndices card_indices) {
-        std::vector<CardPossibilityTable>& info = this->public_info[hint.to];
+        HandInfo& info = this->public_info[hint.to];
 
         // info.update_for_hint(hint, matches);
         if (hint.kind == Hinted::COLOR) {
@@ -810,7 +812,7 @@ public:
 
     void update_public_info_for_discard_or_play(GameView& view, int player, int index, Card card) {
         {
-            std::vector<CardPossibilityTable>& info = this->public_info[player];
+            HandInfo& info = this->public_info[player];
             assert(info[index].is_possible(card));
             info.erase(info.begin() + index);
 
@@ -834,8 +836,8 @@ public:
         this->public_counts.increment(card);
     }
 
-    std::vector<CardPossibilityTable> get_private_info(const Hanabi::Server& server) const {
-        std::vector<CardPossibilityTable> info = this->public_info[this->me];
+    HandInfo get_private_info(const Hanabi::Server& server) const {
+        HandInfo info = this->public_info[this->me];
         for (auto& card_table : info) {
             for (int p=0; p < server.numPlayers(); ++p) {
                 if (p == me) continue;
@@ -865,7 +867,7 @@ public:
         return score;
     }
 
-    int get_index_for_hint(const std::vector<CardPossibilityTable>& info, const GameView& view) const {
+    int get_index_for_hint(const HandInfo& info, const GameView& view) const {
         fixed_capacity_vector<std::pair<int, int>, MAXHANDSIZE> scores;
         for (int i=0; i < (int)info.size(); ++i) {
             auto&& card_table = info[i];
