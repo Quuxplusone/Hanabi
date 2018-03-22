@@ -635,19 +635,16 @@ public:
         };
 
         fixed_capacity_vector<AugmentedCardPossibilities, MAXHANDSIZE> augmented_hand_info;
+        int known_playable = 0;
         for (int i=0; i < (int)hand_info.size(); ++i) {
             const auto& card_table = hand_info[i];
             double p_play = card_table.probability_is_playable(view);
             double p_dead = card_table.probability_is_dead(view);
             bool is_determined = card_table.is_determined();
+            known_playable += (p_play == 1.0);
             augmented_hand_info.emplace_back(
                 card_table, i, p_play, p_dead, is_determined
             );
-        }
-
-        int known_playable = 0;
-        for (auto&& knol : augmented_hand_info) {
-            known_playable += (knol.p_play == 1.0);
         }
 
         if (known_playable == 0) {
@@ -684,8 +681,7 @@ public:
         // sort by probability of play, then by index
         std::sort(ask_partition.begin(), ask_partition.end(), [](auto&& a, auto&& b) {
             // *higher* probabilities are better
-            if (a.p_play != b.p_play) return (a.p_play > b.p_play);
-            return (a.i < b.i);
+            return std::tie(b.p_play, a.i) < std::tie(a.p_play, b.i);
         });
 
         for (const auto& knol : ask_partition) {
