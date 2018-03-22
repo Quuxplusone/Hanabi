@@ -631,8 +631,8 @@ public:
         }
     }
 
-    std::vector<Question> get_questions(int total_info, const GameView& view, const HandInfo& hand_info) const {
-        std::vector<Question> questions;
+    fixed_capacity_vector<Question, 2*MAXHANDSIZE> get_questions(int total_info, const GameView& view, const HandInfo& hand_info) const {
+        fixed_capacity_vector<Question, 2*MAXHANDSIZE> questions;
         int info_remaining = total_info;
         auto add_question = [&](Question question) {
             info_remaining /= question.info_amount();
