@@ -60,8 +60,10 @@ public:
         (*this)[size_].~T();
     }
 
-    const T& operator[](int i) const { return *(T*)buffer_[i]; }
+    const T& operator[](int i) const { return *(const T*)buffer_[i]; }
     T& operator[](int i) { return *(T*)buffer_[i]; }
+    const T& back() const { return *(const T*)buffer_[size_-1]; }
+    T& back() { return *(T*)buffer_[size_-1]; }
     const T *begin() const { return (const T*)buffer_[0]; }
     const T *end() const { return (const T*)buffer_[size_]; }
     T *begin() { return (T*)buffer_[0]; }
@@ -353,6 +355,16 @@ public:
             }
         }
     }
+    template<class F>
+    void for_each_possibility_by_count(const F& fn) const {
+        for (Color k = RED; k <= BLUE; ++k) {
+            for (int v = 1; v <= 5; ++v) {
+                if (counts_[k][v] != 0) {
+                    fn(Card(k, v), counts_[k][v]);
+                }
+            }
+        }
+    }
     bool is_determined() const {
         int count = 0;
         this->for_each_possibility([&](Card) { ++count; });
@@ -605,8 +617,26 @@ struct AugmentedCardPossibilities {
     double p_dead;
     bool is_determined;
 
-    explicit AugmentedCardPossibilities(CardPossibilityTable ct, int i, double p, double d, bool det) :
-        card_table(std::move(ct)), i(i), p_play(p), p_dead(d), is_determined(det) {}
+    explicit AugmentedCardPossibilities(CardPossibilityTable ct, int i, const GameView& view) :
+        card_table(ct), i(i)
+    {
+        int n_play = 0;
+        int n_dead = 0;
+        int n_unique = 0;
+        int n_total = 0;
+        ct.for_each_possibility_by_count([&](Card card, int count) {
+            n_unique += 1;
+            n_total += count;
+            if (view.is_playable(card)) {
+                n_play += count;
+            } else if (view.is_dead(card)) {
+                n_dead += count;
+            }
+        });
+        this->p_play = n_play / (double)n_total;
+        this->p_dead = n_dead / (double)n_total;
+        this->is_determined = (n_unique == 1);
+    }
 };
 
 class InfoBotImpl : public InfoBot {
@@ -635,19 +665,15 @@ public:
         };
 
         fixed_capacity_vector<AugmentedCardPossibilities, MAXHANDSIZE> augmented_hand_info;
-        int known_playable = 0;
+        bool any_known_playable = false;
         for (int i=0; i < (int)hand_info.size(); ++i) {
-            const auto& card_table = hand_info[i];
-            double p_play = card_table.probability_is_playable(view);
-            double p_dead = card_table.probability_is_dead(view);
-            bool is_determined = card_table.is_determined();
-            known_playable += (p_play == 1.0);
-            augmented_hand_info.emplace_back(
-                card_table, i, p_play, p_dead, is_determined
-            );
+            augmented_hand_info.emplace_back(hand_info[i], i, view);
+            if (augmented_hand_info.back().p_play == 1.0) {
+                any_known_playable = true;
+            }
         }
 
-        if (known_playable == 0) {
+        if (!any_known_playable) {
             fixed_capacity_vector<AugmentedCardPossibilities, MAXHANDSIZE> ask_play;
             for (auto&& knol : augmented_hand_info) {
                 if (knol.is_determined) continue;
