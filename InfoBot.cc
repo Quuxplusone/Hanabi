@@ -22,7 +22,21 @@ class fixed_capacity_vector {
     alignas(T) char buffer_[Cap][sizeof(T)];
 public:
     fixed_capacity_vector() = default;
-    fixed_capacity_vector(const fixed_capacity_vector& rhs) = delete;
+    explicit fixed_capacity_vector(int initial_size) noexcept {
+        for (int i=0; i < initial_size; ++i) {
+            this->emplace_back();
+        }
+    }
+    fixed_capacity_vector(const fixed_capacity_vector& rhs) noexcept {
+        for (const auto& elt : rhs) {
+            this->emplace_back(elt);
+        }
+    }
+    fixed_capacity_vector(fixed_capacity_vector&& rhs) noexcept {
+        for (auto& elt : rhs) {
+            this->emplace_back(std::move(elt));
+        }
+    }
     fixed_capacity_vector& operator=(const fixed_capacity_vector& rhs) = delete;
     ~fixed_capacity_vector() {
         for (int i=0; i < size_; ++i) {
@@ -37,7 +51,17 @@ public:
         size_ += 1;
     }
 
+    void erase(T *it) {
+        assert(this->begin() <= it && it < this->end());
+        size_ -= 1;
+        for (int i = (it - begin()); i < size_; ++i) {
+            (*this)[i] = std::move((*this)[i+1]);
+        }
+        (*this)[size_].~T();
+    }
+
     const T& operator[](int i) const { return *(T*)buffer_[i]; }
+    T& operator[](int i) { return *(T*)buffer_[i]; }
     const T *begin() const { return (const T*)buffer_[0]; }
     const T *end() const { return (const T*)buffer_[size_]; }
     T *begin() { return (T*)buffer_[0]; }
@@ -378,7 +402,7 @@ public:
     }
 };
 
-using HandInfo = std::vector<CardPossibilityTable>;
+using HandInfo = fixed_capacity_vector<CardPossibilityTable, MAXHANDSIZE>;
 
 struct ModulusInformation {
     int modulus;
@@ -612,7 +636,7 @@ public:
         int info_remaining = total_info;
         auto add_question = [&](Question question) {
             info_remaining /= question.info_amount();
-            questions.push_back(std::move(question));
+            questions.emplace_back(std::move(question));
             return info_remaining <= 1;
         };
 
@@ -765,7 +789,7 @@ public:
         return (10.0 - int(card.value)) / num_with;
     }
 
-    std::vector<int> find_useless_cards(const GameView& view, const HandInfo& hand) {
+    fixed_capacity_vector<int, MAXHANDSIZE> find_useless_cards(const GameView& view, const HandInfo& hand) {
         fixed_capacity_set<int, MAXHANDSIZE> useless;
         CardToIntMap seen;
 
@@ -785,9 +809,9 @@ public:
                 });
             }
         }
-        std::vector<int> useless_vec;
+        fixed_capacity_vector<int, MAXHANDSIZE> useless_vec;
         for (int i : useless) {
-            useless_vec.push_back(i);
+            useless_vec.emplace_back(i);
         }
         std::sort(useless_vec.begin(), useless_vec.end());
         return useless_vec;
@@ -818,7 +842,7 @@ public:
 
             // push *before* incrementing public counts
             if (view.deck_size != 0) {
-                info.push_back(CardPossibilityTable::from(this->public_counts));
+                info.emplace_back(CardPossibilityTable::from(this->public_counts));
             }
         }
 
@@ -879,12 +903,12 @@ public:
     }
 
     // how good is it to give each of these hints to this player?
-    std::vector<std::pair<double, Hinted>>
+    fixed_capacity_vector<std::pair<double, Hinted>, 2*MAXHANDSIZE>
     hint_goodness_for_each(
         const Hanabi::Server& server, const fixed_capacity_set<Hinted, 2*MAXHANDSIZE>& hint_option_set,
         int hint_player, const GameView& view) const
     {
-        std::vector<std::pair<double, Hinted>> result;
+        fixed_capacity_vector<std::pair<double, Hinted>, 2*MAXHANDSIZE> result;
         auto hand = server.handOfPlayer(hint_player);
 
         // get post-hint hand_info
@@ -963,7 +987,7 @@ public:
         assert(!hint_option_set.empty());
 
         // using hint goodness barely helps
-        std::vector<std::pair<double, Hinted>> hint_options =
+        auto hint_options =
             this->hint_goodness_for_each(server, hint_option_set, hint_player, view);
 
         std::sort(hint_options.begin(), hint_options.end(), [](const auto& h1, const auto& h2) {
