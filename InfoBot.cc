@@ -179,40 +179,34 @@ public:
 
     // best possible value we can get for firework of that color,
     // based on looking at discard + fireworks
-    Value highest_attainable(Color color) const {
-        const auto& firework = this->fireworks[color];
-        int needed = firework + 1;
-        for (int v = needed; v <= 5; ++v) {
-            Card needed_card(color, v);
+    bool is_higher_than_highest_attainable(Card card) const {
+        assert(card.value > this->fireworks[card.color]);
+        assert(this->discard.remaining(card) != 0);  // called only on a card in someone's hand
+        for (int v = this->fireworks[card.color] + 1; v < card.value; ++v) {
+            Card needed_card(card.color, v);
             if (this->discard.remaining(needed_card) == 0) {
                 // already discarded all of these
-                return Value(v - 1);
+                return true;
             }
         }
-        return Value(5);
+        return false;
     }
 
     // is never going to play, based on discard + fireworks
     bool is_dead(Card card) const {
-        const auto& firework = this->fireworks[card.color];
-        if (card.value <= firework) {
-            return true;
-        } else {
-            return (card.value > this->highest_attainable(card.color));
-        }
+        return (
+            card.value <= this->fireworks[card.color] ||
+            this->is_higher_than_highest_attainable(card)
+        );
     }
 
     // can be discarded without necessarily sacrificing score, based on discard + fireworks
     bool is_dispensable(Card card) const {
-        const auto& firework = this->fireworks[card.color];
-        int needed = firework + 1;
-        if (card.value < needed) {
-            return true;
-        } else if (card.value > this->highest_attainable(card.color)) {
-            return true;
-        } else {
-            return this->discard.remaining(card) != 1;
-        }
+        return (
+            card.value <= this->fireworks[card.color] ||
+            this->discard.remaining(card) != 1 ||
+            this->is_higher_than_highest_attainable(card)
+        );
     }
 };
 
