@@ -47,6 +47,9 @@ public:
     bool empty() const { return size() == 0; }
 };
 
+template<class T, int Cap>
+using fixed_capacity_set = std::set<T>;
+
 struct Hinted {
     enum Kind { COLOR, VALUE };
     explicit Hinted(Kind kind, int k) : kind(kind), color(Color(-1)), value(Value(-1)) {
@@ -750,10 +753,10 @@ public:
     }
 
     std::vector<int> find_useless_cards(const GameView& view, const std::vector<CardPossibilityTable>& hand) {
-        std::set<int> useless;
+        fixed_capacity_set<int, MAXHANDSIZE> useless;
         CardToIntMap seen;
 
-        for (int i=0; i < (int)hand.size(); ++i) {
+        for (int i=0; i < hand.size(); ++i) {
             const auto& card_table = hand[i];
             if (card_table.probability_is_dead(view) == 1.0) {
                 useless.insert(i);
@@ -865,7 +868,7 @@ public:
     // how good is it to give each of these hints to this player?
     std::vector<std::pair<double, Hinted>>
     hint_goodness_for_each(
-        const Hanabi::Server& server, const std::set<Hinted>& hint_option_set,
+        const Hanabi::Server& server, const fixed_capacity_set<Hinted, 2*MAXHANDSIZE>& hint_option_set,
         int hint_player, const GameView& view) const
     {
         std::vector<std::pair<double, Hinted>> result;
@@ -941,7 +944,7 @@ public:
         return (!may_be_all_one_color && !may_be_all_one_number) ? 4 : 3;
     }
 
-    Hinted get_best_hint_of_options(const Hanabi::Server& server, int hint_player, std::set<Hinted> hint_option_set) const {
+    Hinted get_best_hint_of_options(const Hanabi::Server& server, int hint_player, const fixed_capacity_set<Hinted, 2*MAXHANDSIZE>& hint_option_set) const {
         const auto& view = this->last_view;
 
         assert(!hint_option_set.empty());
@@ -1004,7 +1007,7 @@ public:
             (hint_type == 2) ? [&]() -> Hinted {
                 // NOTE: this doesn't do that much better than just hinting
                 // the first thing that doesn't match the hint_card
-                std::set<Hinted> hint_option_set;
+                fixed_capacity_set<Hinted, 2*MAXHANDSIZE> hint_option_set;
                 for (auto&& card : hand) {
                     if (card.color != hint_card.color) hint_option_set.insert(Hinted::WithColor(card.color));
                     if (card.value != hint_card.value) hint_option_set.insert(Hinted::WithValue(card.value));
@@ -1018,7 +1021,7 @@ public:
             (hint_type == 1) ? Hinted::WithColor(hint_card.color) :
             (hint_type == 2) ? [&]() -> Hinted {
                 // Any value hint for a card other than the first
-                std::set<Hinted> hint_option_set;
+                fixed_capacity_set<Hinted, 2*MAXHANDSIZE> hint_option_set;
                 for (auto&& card : hand) {
                     if (card.value != hint_card.value) hint_option_set.insert(Hinted::WithValue(card.value));
                 }
@@ -1026,7 +1029,7 @@ public:
             }() :
             (hint_type == 3) ? [&]() -> Hinted {
                     // Any color hint for a card other than the first
-                std::set<Hinted> hint_option_set;
+                fixed_capacity_set<Hinted, 2*MAXHANDSIZE> hint_option_set;
                 for (auto&& card : hand) {
                     if (card.color != hint_card.color) hint_option_set.insert(Hinted::WithColor(card.color));
                 }
