@@ -20,6 +20,10 @@ time ./run_SmartBot --quiet --players 2 --seed 1 --games 200000 --every 200000
 time ./run_SmartBot --quiet --players 3 --seed 1 --games 200000 --every 200000
 time ./run_SmartBot --quiet --players 4 --seed 1 --games 200000 --every 200000
 
+time ./run_InfoBot --quiet --players 2 --seed 1 --games 200000 --every 200000
+time ./run_InfoBot --quiet --players 3 --seed 1 --games 200000 --every 200000
+time ./run_InfoBot --quiet --players 4 --seed 1 --games 200000 --every 200000
+
 time ./run_CheatBot --quiet --players 2 --seed 1 --games 200000 --every 200000
 time ./run_CheatBot --quiet --players 3 --seed 1 --games 200000 --every 200000
 time ./run_CheatBot --quiet --players 4 --seed 1 --games 200000 --every 200000
