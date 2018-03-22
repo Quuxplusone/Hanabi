@@ -4,7 +4,6 @@
 
 #include <cassert>
 #include <memory>
-#include <set>
 #include <vector>
 
 #define MAXPLAYERS 10  // use statically sized arrays instead of vector in some places
@@ -48,7 +47,22 @@ public:
 };
 
 template<class T, int Cap>
-using fixed_capacity_set = std::set<T>;
+class fixed_capacity_set {
+    fixed_capacity_vector<T, Cap> elements_;
+public:
+    void insert(T t) {
+        for (auto&& elt : elements_) {
+            if (elt == t) return;
+        }
+        elements_.emplace_back(std::move(t));
+    }
+    const T *begin() const { return elements_.begin(); }
+    const T *end() const { return elements_.end(); }
+    T *begin() { return elements_.begin(); }
+    T *end() { return elements_.end(); }
+    int size() const { return elements_.size(); }
+    bool empty() const { return elements_.empty(); }
+};
 
 struct Hinted {
     enum Kind { COLOR, VALUE };
@@ -62,11 +76,8 @@ struct Hinted {
     Color color;
     Value value;
 
-    friend bool operator<(const Hinted& a, const Hinted& b) noexcept {
-        if (a.kind != b.kind) return (a.kind < b.kind);
-        if (a.color != b.color) return (a.color < b.color);
-        if (a.value != b.value) return (a.value < b.value);
-        return false;
+    friend bool operator==(const Hinted& a, const Hinted& b) noexcept {
+        return (a.kind == b.kind) && (a.color == b.color) && (a.value == b.value);
     }
 };
 
