@@ -73,8 +73,11 @@ class CardIndices {
     friend class Server;
 public:
     bool contains(int index) const {
-        assert(0 <= index && index < 8);
-        return (mask_ & (1u << index)) != 0;
+        if (0 <= index && index < 8) {
+            return (mask_ & (1u << index)) != 0;
+        } else {
+            return false;
+        }
     }
     int operator[](int i) const {
         assert(0 <= i && i < count_);
