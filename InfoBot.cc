@@ -125,9 +125,9 @@ public:
 };
 
 class GameView {
+public:
     CardCounts discard;
     int fireworks[Hanabi::NUMCOLORS];
-public:
     int deck_size;
     int total_cards;
     int num_players;
@@ -204,11 +204,7 @@ public:
 
     // can be discarded without necessarily sacrificing score, based on discard + fireworks
     bool is_dispensable(Card card) const {
-        return (
-            card.value <= this->fireworks[card.color] ||
-            this->discard.remaining(card) != 1 ||
-            this->is_higher_than_highest_attainable(card)
-        );
+        return (this->discard.remaining(card) != 1) || this->is_dead(card);
     }
 };
 
@@ -313,11 +309,11 @@ public:
     template<class F>
     double weighted_score(const F& score_fn) const {
         double total_score = 0;
-        double total_weight = 0;
+        int total_weight = 0;
         for (Color k = RED; k <= BLUE; ++k) {
             for (int v = 1; v <= 5; ++v) {
                 if (counts_[k][v] != 0) {
-                    double weight = counts_[k][v];
+                    int weight = counts_[k][v];
                     double score = score_fn(Card(k, v));
                     total_weight += weight;
                     total_score += weight * score;
@@ -327,7 +323,7 @@ public:
         return total_score / total_weight;
     }
     double average_value() const {
-        return this->weighted_score([](Card card) { return card.value; });
+        return this->weighted_score([](Card card) { return int(card.value); });
     }
     int total_weight() const {
         int result = 0;
@@ -336,10 +332,25 @@ public:
     }
     template<class F>
     double probability_of_predicate(const F& predicate) const {
-        return this->weighted_score([&](Card card) { return predicate(card) ? 1.0 : 0.0; });
+        return this->weighted_score([&](Card card) { return predicate(card) ? 1 : 0; });
     }
     double probability_is_dead(const GameView& view) const {
-        return this->probability_of_predicate([&](Card card) { return view.is_dead(card); });
+        int total_dead = 0;
+        int total_live = 0;
+        for (Color k = RED; k <= BLUE; ++k) {
+            int next = view.fireworks[k] + 1;
+            int v = 1;
+            for (; v < next; ++v) {
+                total_dead += counts_[k][v];
+            }
+            for (; v <= 5 && view.discard.remaining(Card(k, v)) != 0; ++v) {
+                total_live += counts_[k][v];
+            }
+            for (; v <= 5; ++v) {
+                total_dead += counts_[k][v];
+            }
+        }
+        return total_dead / double(total_dead + total_live);
     }
     double probability_is_playable(const GameView& view) const {
         return this->probability_of_predicate([&](Card card) { return view.is_playable(card); });
@@ -722,13 +733,15 @@ public:
         return questions;
     }
 
-    ModulusInformation get_hint_info_for_player(int player, int total_info, const OwnedGameView& view) const {
+    ModulusInformation get_hint_info_for_player(
+        int player, int total_info,
+        const fixed_capacity_vector<Question, 2*MAXHANDSIZE>& questions,
+        const OwnedGameView& view) const
+    {
         assert(player != me);
-        const auto& hand_info = this->public_info[player];
-        auto questions = this->get_questions(total_info, view, hand_info);
         const auto& hand = view.get_hand(player);
         ModulusInformation answer = ModulusInformation::none();
-        for (auto&& question : questions) {
+        for (const auto& question : questions) {
             auto new_answer_info = question.answer_info(hand, view);
             answer.combine(new_answer_info);
         }
@@ -740,7 +753,8 @@ public:
         ModulusInformation sum_info(total_info, 0);
         for (int player = 0; player < numPlayers; ++player) {
             if (player == me) continue;
-            auto answer = this->get_hint_info_for_player(player, total_info, view);
+            auto questions = this->get_questions(total_info, view, this->public_info[player]);
+            auto answer = this->get_hint_info_for_player(player, total_info, questions, view);
             sum_info.add(answer);
         }
         return sum_info;
@@ -765,14 +779,15 @@ public:
         int hinter = view.player;
         for (int player = 0; player < numPlayers; ++player) {
             if (player != hinter && player != this->me) {
+                auto& hand_info = this->public_info[player];
+                auto questions = this->get_questions(hint.modulus, view, hand_info);
                 if (true) {
-                    auto hint_info = this->get_hint_info_for_player(player, hint.modulus, view);
+                    auto hint_info = this->get_hint_info_for_player(player, hint.modulus, questions, view);
                     hint.subtract(hint_info);
                 }
 
-                auto& hand_info = this->public_info[player];
                 const auto& hand = view.get_hand(player);
-                auto questions = this->get_questions(hint.modulus, view, hand_info);
+                // auto questions = this->get_questions(hint.modulus, view, hand_info);
                 for (auto&& question : questions) {
                     auto answer = question.answer(hand, view);
                     question.acknowledge_answer(answer, hand_info, view);
