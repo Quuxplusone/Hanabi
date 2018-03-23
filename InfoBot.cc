@@ -476,25 +476,14 @@ struct ModulusInformation {
     }
 };
 
-class QuestionImpl {
-public:
-    // how much info does this question ask for?
-    virtual int info_amount() const = 0;
-    // get the answer to this question, given cards
-    virtual int answer(const std::vector<Card>&, const GameView&) const = 0;
-    // process the answer to this question, updating card info
-    virtual void acknowledge_answer(int answer, HandInfo&, const GameView&) const = 0;
-    virtual ~QuestionImpl() = default;
-};
-
-class IsPlayable final : public QuestionImpl {
+class IsPlayable {
     int index;
 public:
     IsPlayable() = default;
     explicit IsPlayable(int i) : index(i) {}
 
-    int info_amount() const override { return 2; }
-    int answer(const std::vector<Card>& hand, const GameView& view) const override {
+    int info_amount() const { return 2; }
+    int answer(const std::vector<Card>& hand, const GameView& view) const {
         const Card& card = hand[this->index];
         if (view.is_playable(card)) {
             return 1;
@@ -502,7 +491,7 @@ public:
             return 0;
         }
     }
-    void acknowledge_answer(int answer, HandInfo& hand_info, const GameView& view) const override {
+    void acknowledge_answer(int answer, HandInfo& hand_info, const GameView& view) const {
         auto& card_table = hand_info[this->index];
         card_table.for_each_possibility([&](Card card) {
             if (view.is_playable(card)) {
@@ -523,7 +512,7 @@ public:
     int at(Card key) const { return map_[key.color][key.value]; }
 };
 
-class CardPossibilityPartition final : public QuestionImpl {
+class CardPossibilityPartition {
     int index;
     int n_partitions;
     CardToIntMap partition;
@@ -568,12 +557,12 @@ public:
         this->partition = std::move(partition);
     }
 
-    int info_amount() const override { return this->n_partitions; }
-    int answer(const std::vector<Card>& hand, const GameView&) const override {
+    int info_amount() const { return this->n_partitions; }
+    int answer(const std::vector<Card>& hand, const GameView&) const {
         const auto& card = hand[this->index];
         return this->partition.at(card);
     }
-    void acknowledge_answer(int answer, HandInfo& hand_info, const GameView&) const override {
+    void acknowledge_answer(int answer, HandInfo& hand_info, const GameView&) const {
         auto& card_table = hand_info[this->index];
         card_table.for_each_possibility([&](Card card) {
             if (this->partition.at(card) != answer) {
@@ -586,23 +575,13 @@ public:
 class Question {
     enum Kind { Q_IS_PLAYABLE, Q_PARTITION };
     Kind kind;
-    IsPlayable play;
-    CardPossibilityPartition partition;
-
-    template<class F>
-    auto visit(const F& fn) {
-        switch (kind) {
-            case Q_IS_PLAYABLE: return fn(this->play);
-            case Q_PARTITION: return fn(this->partition);
-            default: assert(false); __builtin_unreachable();
-        }
-    }
+    std::aligned_union_t<1, ::IsPlayable, ::CardPossibilityPartition> storage;
 
     template<class F>
     auto visit(const F& fn) const {
         switch (kind) {
-            case Q_IS_PLAYABLE: return fn(this->play);
-            case Q_PARTITION: return fn(this->partition);
+            case Q_IS_PLAYABLE: return fn(*(::IsPlayable*)&this->storage);
+            case Q_PARTITION: return fn(*(::CardPossibilityPartition*)&this->storage);
             default: assert(false); __builtin_unreachable();
         }
     }
@@ -632,7 +611,7 @@ public:
     static Question IsPlayable(int i) {
         Question result;
         result.kind = Q_IS_PLAYABLE;
-        result.play = ::IsPlayable(i);
+        new (&result.storage) ::IsPlayable(i);
         return result;
     }
     static Question CardPossibilityPartition(
@@ -641,7 +620,7 @@ public:
     ) {
         Question result;
         result.kind = Q_PARTITION;
-        result.partition = ::CardPossibilityPartition(index, max_n_partitions, card_table, view);
+        new (&result.storage) ::CardPossibilityPartition(index, max_n_partitions, card_table, view);
         return result;
     }
 };
