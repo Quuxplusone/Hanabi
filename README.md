@@ -12,13 +12,14 @@ Running the bots
 - Typing `make FAST=1` will use faster "release build" options.
 - Appending `OPENMP=1` will enable parallel processing with OpenMP.
 
-There are seven bots provided:
+There are eight bots provided:
 
 - BlindBot (blindly plays a random card each time)
 - SimpleBot (hints about playable cards)
 - ValueBot (also warns about valuable cards)
 - HolmesBot (also performs inferences, and uses mulligans)
 - SmartBot (prefers to play cards its partners don't know it knows)
+- InfoBot (based on [code from Jeff Wu](https://github.com/WuTheFWasThat/hanabi.rs): a "hat game" strategy)
 - CheatBot (secretly radios its partners; that is, cheats)
 - NewCheatBot (also cheats)
 
@@ -32,6 +33,7 @@ Current average scores (and percent perfect games) per bot, for 2–5 players:
     Value    19.79            19.43            19.39            17.76
     Holmes   20.75  (5.41%)   20.86  (0.37%)   20.46  (0.04%)   18.40
     Smart    23.09 (29.52%)   23.30 (19.54%)   22.44  (4.56%)   20.69 (0.08%)
+    Info     19.52  (0.23%)   24.17 (47.96%)   24.86 (89.13%)   24.89 (91.22%)
     Cheat    24.90 (93.92%)   24.98 (98.37%)   24.97 (97.94%)   24.95 (96.47%)
     NewCheat 24.72 (85.56%)   24.91 (94.37%)   24.88 (91.20%)   24.85 (88.37%)
 

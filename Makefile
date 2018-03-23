@@ -1,4 +1,4 @@
-CXXFLAGS += -std=c++11
+CXXFLAGS += -std=c++14
 CXXFLAGS += -W -Wall -Wextra -pedantic -Wno-sign-compare
 CXXFLAGS += ${EXTRA_CXXFLAGS}
 
@@ -12,7 +12,7 @@ ifeq ($(OPENMP),1)
 endif
 
 all: run_BlindBot run_SimpleBot run_ValueBot run_HolmesBot \
-     run_SmartBot run_CheatBot run_NewCheatBot
+     run_SmartBot run_CheatBot run_NewCheatBot run_InfoBot
 
 .PHONY clean:
 	rm -f *.o
