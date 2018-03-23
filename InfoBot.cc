@@ -487,35 +487,10 @@ public:
     virtual ~QuestionImpl() = default;
 };
 
-class Question {
-    std::unique_ptr<QuestionImpl> impl;
-public:
-    int info_amount() const { return impl->info_amount(); }
-    int answer(const std::vector<Card>& hand, const GameView& view) const { return impl->answer(hand, view); }
-    void acknowledge_answer(int answer, HandInfo& info, const GameView& view) const { return impl->acknowledge_answer(answer, info, view); }
-
-    ModulusInformation answer_info(const std::vector<Card>& hand, const GameView& view) const {
-        return ModulusInformation(
-            this->info_amount(),
-            this->answer(hand, view)
-        );
-    }
-
-    void acknowledge_answer_info(ModulusInformation answer, HandInfo& hand_info, const GameView& view) const {
-        assert(this->info_amount() == answer.modulus);
-        this->acknowledge_answer(answer.value, hand_info, view);
-    }
-
-    static Question IsPlayable(int i);
-    static Question CardPossibilityPartition(
-        int index, int max_n_partitions,
-        const CardPossibilityTable& card_table, const GameView& view
-    );
-};
-
-class IsPlayable : public QuestionImpl {
+class IsPlayable final : public QuestionImpl {
     int index;
 public:
+    IsPlayable() = default;
     explicit IsPlayable(int i) : index(i) {}
 
     int info_amount() const override { return 2; }
@@ -548,11 +523,12 @@ public:
     int at(Card key) const { return map_[key.color][key.value]; }
 };
 
-class CardPossibilityPartition : public QuestionImpl {
+class CardPossibilityPartition final : public QuestionImpl {
     int index;
     int n_partitions;
     CardToIntMap partition;
 public:
+    CardPossibilityPartition() = default;
     explicit CardPossibilityPartition(
         int index, int max_n_partitions, const CardPossibilityTable& card_table, const GameView& view)
     {
@@ -607,21 +583,68 @@ public:
     }
 };
 
-Question Question::IsPlayable(int i)
-{
-    Question result;
-    result.impl = std::make_unique<::IsPlayable>(i);
-    return result;
-}
+class Question {
+    enum Kind { Q_IS_PLAYABLE, Q_PARTITION };
+    Kind kind;
+    IsPlayable play;
+    CardPossibilityPartition partition;
 
-Question Question::CardPossibilityPartition(
-    int index, int max_n_partitions,
-    const CardPossibilityTable& card_table, const GameView& view)
-{
-    Question result;
-    result.impl = std::make_unique<::CardPossibilityPartition>(index, max_n_partitions, card_table, view);
-    return result;
-}
+    template<class F>
+    auto visit(const F& fn) {
+        switch (kind) {
+            case Q_IS_PLAYABLE: return fn(this->play);
+            case Q_PARTITION: return fn(this->partition);
+            default: assert(false); __builtin_unreachable();
+        }
+    }
+
+    template<class F>
+    auto visit(const F& fn) const {
+        switch (kind) {
+            case Q_IS_PLAYABLE: return fn(this->play);
+            case Q_PARTITION: return fn(this->partition);
+            default: assert(false); __builtin_unreachable();
+        }
+    }
+public:
+    int info_amount() const {
+        return visit([&](auto&& impl){ return impl.info_amount(); });
+    }
+    int answer(const std::vector<Card>& hand, const GameView& view) const {
+        return visit([&](auto&& impl){ return impl.answer(hand, view); });
+    }
+    void acknowledge_answer(int answer, HandInfo& info, const GameView& view) const {
+        return visit([&](auto&& impl){ return impl.acknowledge_answer(answer, info, view); });
+    }
+
+    ModulusInformation answer_info(const std::vector<Card>& hand, const GameView& view) const {
+        return ModulusInformation(
+            this->info_amount(),
+            this->answer(hand, view)
+        );
+    }
+
+    void acknowledge_answer_info(ModulusInformation answer, HandInfo& hand_info, const GameView& view) const {
+        assert(this->info_amount() == answer.modulus);
+        this->acknowledge_answer(answer.value, hand_info, view);
+    }
+
+    static Question IsPlayable(int i) {
+        Question result;
+        result.kind = Q_IS_PLAYABLE;
+        result.play = ::IsPlayable(i);
+        return result;
+    }
+    static Question CardPossibilityPartition(
+        int index, int max_n_partitions,
+        const CardPossibilityTable& card_table, const GameView& view
+    ) {
+        Question result;
+        result.kind = Q_PARTITION;
+        result.partition = ::CardPossibilityPartition(index, max_n_partitions, card_table, view);
+        return result;
+    }
+};
 
 struct AugmentedCardPossibilities {
     CardPossibilityTable card_table;
