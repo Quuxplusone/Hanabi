@@ -329,8 +329,10 @@ public:
     double average_value() const {
         return this->weighted_score([](Card card) { return card.value; });
     }
-    double total_weight() const {
-        return this->weighted_score([](const Card&) { return 1.0; });
+    int total_weight() const {
+        int result = 0;
+        this->for_each_possibility_by_count([&](Card, int count) { result += count; });
+        return result;
     }
     template<class F>
     double probability_of_predicate(const F& predicate) const {
@@ -948,7 +950,7 @@ public:
                 if (card_table.is_determined()) {
                     continue;
                 }
-                auto old_weight = card_table.total_weight();
+                int old_weight = card_table.total_weight();
                 if (hinted.kind == Hinted::COLOR) {
                     card_table.mark_color(hinted.color, hinted.color == card.color);
                 } else if (hinted.kind == Hinted::VALUE) {
@@ -956,14 +958,14 @@ public:
                 } else {
                     assert(false);
                 }
-                auto new_weight = card_table.total_weight();
+                int new_weight = card_table.total_weight();
                 assert(new_weight <= old_weight);
                 double bonus = (
                     card_table.is_determined() ? 2 :
                     card_table.probability_is_dead(view) == 1.0 ? 2 :
                     1
                 );
-                goodness *= bonus * (old_weight / new_weight);
+                goodness *= bonus * double(old_weight) / new_weight;
             }
             result.emplace_back(goodness, hinted);
         }
