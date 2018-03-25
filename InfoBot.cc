@@ -855,7 +855,6 @@ public:
     void update_public_info_for_hint(const Hint& hint, CardIndices card_indices) {
         HandInfo& info = this->public_info[hint.to];
 
-        // info.update_for_hint(hint, matches);
         if (hint.kind == Hinted::COLOR) {
             for (int i = 0; i < info.size(); ++i) {
                 info[i].mark_color(hint.color, card_indices.contains(i));
@@ -870,23 +869,16 @@ public:
     }
 
     void update_public_info_for_discard_or_play(GameView& view, int player, int index, Card card) {
-        {
-            HandInfo& info = this->public_info[player];
-            assert(info[index].is_possible(card));
-            info.erase(info.begin() + index);
+        HandInfo& info = this->public_info[player];
+        assert(info[index].is_possible(card));
+        info.erase(info.begin() + index);
 
-            // push *before* incrementing public counts
-            if (view.deck_size != 0) {
-                info.emplace_back(CardPossibilityTable::from(this->public_counts));
-            }
+        // push *before* incrementing public counts
+        if (view.deck_size != 0) {
+            info.emplace_back(CardPossibilityTable::from(this->public_counts));
         }
 
-        // TODO: decrement weight counts for fully determined cards, ahead of time
-
-        // note: other_player could be player, as well
-        // in particular, we will decrement the newly drawn card
-        for (int other_player = 0; other_player < numPlayers; ++other_player) {
-            auto& info = this->public_info[other_player];
+        for (auto& info : this->public_info) {
             for (auto& card_table : info) {
                 card_table.decrement_weight_if_possible(card);
             }
@@ -927,14 +919,11 @@ public:
     }
 
     int get_index_for_hint(const HandInfo& info, const GameView& view) const {
-        fixed_capacity_vector<std::pair<int, int>, MAXHANDSIZE> scores;
-        for (int i=0; i < (int)info.size(); ++i) {
-            auto&& card_table = info[i];
-            int score = this->get_hint_index_score(card_table, view);
-            scores.emplace_back(-score, i);
+        fixed_capacity_vector<int, MAXHANDSIZE> scores;
+        for (const auto& card_table : info) {
+            scores.emplace_back(this->get_hint_index_score(card_table, view));
         }
-        std::sort(scores.begin(), scores.end());
-        return scores[0].second;
+        return std::max_element(scores.begin(), scores.end()) - scores.begin();
     }
 
     // how good is it to give each of these hints to this player?
@@ -1177,65 +1166,47 @@ public:
 
         auto private_info = this->get_private_info(server);
 
-        fixed_capacity_vector<std::pair<int, CardPossibilityTable>, MAXHANDSIZE> playable_cards;
+        // Maybe play the best playable card...
+        double best_score = -1.0;
+        int best_index = -1;
         for (int i=0; i < private_info.size(); ++i) {
             const auto& card_table = private_info[i];
             if (card_table.probability_is_playable(view) == 1.0) {
-                playable_cards.emplace_back(i, card_table);
-            }
-        }
-
-        if (!playable_cards.empty()) {
-            // play the best playable card
-            // the higher the play_score, the better to play
-            double play_score = -1.0;
-            int play_index = 0;
-
-            for (const auto& kv : playable_cards) {
-                const auto& index = kv.first;
-                const auto& card_table = kv.second;
                 double score = this->get_average_play_score(view, card_table);
-                if (score > play_score) {
-                    play_score = score;
-                    play_index = index;
+                if (score > best_score) {
+                    best_score = score;
+                    best_index = i;
                 }
             }
-
-            return server.pleasePlay(play_index);
+        }
+        if (best_index >= 0) {
+            return server.pleasePlay(best_index);
         }
 
-        int discard_threshold =
+        // Maybe make a risky play...
+        const int discard_threshold =
             view.total_cards
             - (Hanabi::NUMCOLORS * 5)
             - (view.num_players * view.hand_size);
 
-        // make a possibly risky play
-        // TODO: consider removing this, if we improve information transfer
-        if (view.lives_remaining > 1 &&
-            view.discard_size <= discard_threshold)
-        {
-            fixed_capacity_vector<std::tuple<int, CardPossibilityTable, double>, MAXHANDSIZE> risky_playable_cards;
+        if (view.lives_remaining > 1 && view.discard_size <= discard_threshold) {
             for (int i=0; i < private_info.size(); ++i) {
                 const auto& card_table = private_info[i];
-                // card is either playable or dead
+                // Consider cards that are definitely either playable or dead; don't risk
+                // throwing away a card that we will want later in the game.
                 if (card_table.probability_of_predicate([&](Card card) {
                     return view.is_playable(card) || view.is_dead(card);
                 }) != 1.0) {
                     continue;
                 }
                 double p = card_table.probability_is_playable(view);
-                risky_playable_cards.emplace_back(i, card_table, p);
-            }
-
-            if (!risky_playable_cards.empty()) {
-                std::sort(risky_playable_cards.begin(), risky_playable_cards.end(), [&](const auto& a, const auto& b) {
-                    return std::get<2>(a) > std::get<2>(b);
-                });
-
-                auto maybe_play = risky_playable_cards[0];
-                if (std::get<2>(maybe_play) > 0.75) {
-                    return server.pleasePlay(std::get<0>(maybe_play));
+                if (p > 0.75 && p > best_score) {
+                    best_score = p;
+                    best_index = i;
                 }
+            }
+            if (best_index >= 0) {
+                return server.pleasePlay(best_index);
             }
         }
 
@@ -1279,9 +1250,7 @@ public:
         // - there are no hints remaining OR nobody else can play
 
         // Play the best discardable card
-        double compval = 0.0;
-        int index = 0;
-        for (int i=0; i < (int)private_info.size(); ++i) {
+        for (int i=0; i < private_info.size(); ++i) {
             const auto& card_table = private_info[i];
             double probability_is_seen = card_table.probability_of_predicate([&](Card card) {
                 return view.can_see(card);
@@ -1291,12 +1260,16 @@ public:
                 + 10.0 * card_table.probability_is_dispensable(view)
                 + card_table.average_value();
 
-            if (my_compval > compval) {
-                compval = my_compval;
-                index = i;
+            if (my_compval > best_score) {
+                best_score = my_compval;
+                best_index = i;
             }
         }
-        return server.pleaseDiscard(index);
+        if (best_index >= 0) {
+            return server.pleaseDiscard(best_index);
+        } else {
+            return server.pleaseDiscard(0);
+        }
     }
 
     void pleaseObserveColorHint(const Hanabi::Server& server, int from, int to, Color color, CardIndices card_indices) override
