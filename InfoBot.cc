@@ -3,6 +3,7 @@
 #include "InfoBot.h"
 
 #include <cassert>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -656,6 +657,141 @@ struct AugmentedCardPossibilities {
     }
 };
 
+using HintStrategyCallback = std::function<void(Hinted)>;
+
+class HintStrategyImpl {
+public:
+    virtual int get_count() const = 0;
+    virtual void encode_hint(const OwnedGameView& view, int to, int hint_type, const HintStrategyCallback& fn) const = 0;
+    virtual int decode_hint(Hint hint, CardIndices card_indices) const = 0;
+    virtual ~HintStrategyImpl() = default;
+
+protected:
+    static int get_hint_index_score(const CardPossibilityTable& card_table, const GameView& view) {
+        if (card_table.probability_is_dead(view) == 1.0) {
+            return 0;
+        }
+        if (card_table.is_determined()) {
+            return 0;
+        }
+        // Do something more intelligent?
+        int score = 1;
+        if (!card_table.color_determined()) {
+            score += 1;
+        }
+        if (!card_table.value_determined()) {
+            score += 1;
+        }
+        return score;
+    }
+
+    static int get_index_for_hint(const HandInfo& info, const GameView& view) {
+        fixed_capacity_vector<int, MAXHANDSIZE> scores;
+        for (const auto& card_table : info) {
+            scores.emplace_back(get_hint_index_score(card_table, view));
+        }
+        return std::max_element(scores.begin(), scores.end()) - scores.begin();
+    }
+};
+
+class HintStrategy3 : public HintStrategyImpl {
+    int card_index;
+public:
+    explicit HintStrategy3(const HandInfo& info, const GameView& view) {
+        card_index = get_index_for_hint(info, view);
+    }
+    int get_count() const override { return 3; }
+    void encode_hint(const OwnedGameView& view, int to, int hint_type, const HintStrategyCallback& fn) const override {
+        const auto& hand = view.get_hand(to);
+        const auto& hint_card = hand[card_index];
+        if (hint_type == 0) {
+            fn( Hinted::WithValue(hint_card.value) );
+        } else if (hint_type == 1) {
+            fn( Hinted::WithColor(hint_card.color) );
+        } else {
+            for (auto&& card : hand) {
+                if (card.color != hint_card.color) fn( Hinted::WithColor(card.color) );
+                if (card.value != hint_card.value) fn( Hinted::WithValue(card.value) );
+            }
+        }
+    }
+    int decode_hint(Hint hint, CardIndices card_indices) const override {
+        if (card_indices.contains(card_index)) {
+            if (hint.kind == Hinted::VALUE) {
+                return 0;
+            } else {
+                return 1;
+            }
+        } else {
+            return 2;
+        }
+    }
+};
+
+class HintStrategy4 : public HintStrategyImpl {
+    int card_index;
+public:
+    explicit HintStrategy4(const HandInfo& info, const GameView& view) {
+        card_index = get_index_for_hint(info, view);
+    }
+    int get_count() const override { return 4; }
+    void encode_hint(const OwnedGameView& view, int to, int hint_type, const HintStrategyCallback& fn) const override {
+        const auto& hand = view.get_hand(to);
+        const auto& hint_card = hand[card_index];
+        if (hint_type == 0) {
+            fn( Hinted::WithValue(hint_card.value) );
+        } else if (hint_type == 1) {
+            fn( Hinted::WithColor(hint_card.color) );
+        } else if (hint_type == 2) {
+            for (auto&& card : hand) {
+                if (card.value != hint_card.value) fn( Hinted::WithValue(card.value) );
+            }
+        } else {
+            for (auto&& card : hand) {
+                if (card.color != hint_card.color) fn( Hinted::WithColor(card.color) );
+            }
+        }
+    }
+    int decode_hint(Hint hint, CardIndices card_indices) const override {
+        if (card_indices.contains(card_index)) {
+            if (hint.kind == Hinted::VALUE) {
+                return 0;
+            } else {
+                return 1;
+            }
+        } else {
+            if (hint.kind == Hinted::VALUE) {
+                return 2;
+            } else {
+                return 3;
+            }
+        }
+    }
+};
+
+class InfoBotImpl;
+
+class HintStrategy {
+    std::unique_ptr<HintStrategyImpl> p;
+    HintStrategy() = default;
+public:
+    int get_count() const { return p->get_count(); }
+    void encode_hint(const OwnedGameView& view, int to, int hint_type, const HintStrategyCallback& fn) const { p->encode_hint(view, to, hint_type, fn); }
+    int decode_hint(Hint hint, CardIndices card_indices) const { return p->decode_hint(hint, card_indices); }
+
+    static HintStrategy Make3(const HandInfo& info, const GameView& view) {
+        HintStrategy result;
+        result.p = std::make_unique<HintStrategy3>(info, view);
+        return result;
+    }
+
+    static HintStrategy Make4(const HandInfo& info, const GameView& view) {
+        HintStrategy result;
+        result.p = std::make_unique<HintStrategy4>(info, view);
+        return result;
+    }
+};
+
 class InfoBotImpl : public InfoBot {
     int me;
     int numPlayers;
@@ -902,82 +1038,8 @@ public:
         return info;
     }
 
-    int get_hint_index_score(const CardPossibilityTable& card_table, const GameView& view) const {
-        if (card_table.probability_is_dead(view) == 1.0) {
-            return 0;
-        }
-        if (card_table.is_determined()) {
-            return 0;
-        }
-        // Do something more intelligent?
-        int score = 1;
-        if (!card_table.color_determined()) {
-            score += 1;
-        }
-        if (!card_table.value_determined()) {
-            score += 1;
-        }
-        return score;
-    }
-
-    int get_index_for_hint(const HandInfo& info, const GameView& view) const {
-        fixed_capacity_vector<int, MAXHANDSIZE> scores;
-        for (const auto& card_table : info) {
-            scores.emplace_back(this->get_hint_index_score(card_table, view));
-        }
-        return std::max_element(scores.begin(), scores.end()) - scores.begin();
-    }
-
-    // how good is it to give each of these hints to this player?
-    template<class F>
-    void for_each_hint_by_goodness(
-        const std::vector<Card>& hand, const SinglePlayerHintSet& hint_option_set,
-        int hint_player, const GameView& view, const F& fn) const
-    {
-        // get post-hint hand_info
-        auto hand_info = this->public_info[hint_player];
-        int total_info  = 3 * (view.num_players - 1);
-        auto questions = this->get_questions(total_info, view, hand_info);
-        for (const auto& question : questions) {
-            auto answer = question.answer(hand, view);
-            question.acknowledge_answer(answer, hand_info, view);
-        }
-
-        for (const auto& hinted : hint_option_set) {
-            auto hypothetical_hand_info = hand_info;
-            double goodness = 1.0;
-            for (int i=0; i < (int)hand_info.size(); ++i) {
-                auto& card_table = hypothetical_hand_info[i];
-                auto card = hand[i];
-                if (card_table.probability_is_dead(view) == 1.0) {
-                    continue;
-                }
-                if (card_table.is_determined()) {
-                    continue;
-                }
-                int old_weight = card_table.total_weight();
-                if (hinted.kind == Hinted::COLOR) {
-                    card_table.mark_color(hinted.color, hinted.color == card.color);
-                } else if (hinted.kind == Hinted::VALUE) {
-                    card_table.mark_value(hinted.value, hinted.value == card.value);
-                } else {
-                    assert(false);
-                }
-                int new_weight = card_table.total_weight();
-                assert(new_weight <= old_weight);
-                double bonus = (
-                    card_table.is_determined() ? 2 :
-                    card_table.probability_is_dead(view) == 1.0 ? 2 :
-                    1
-                );
-                goodness *= bonus * double(old_weight) / new_weight;
-            }
-            fn(hinted, goodness);
-        }
-    }
-
     // Returns the number of ways to hint the player.
-    int get_info_per_player(int player) const {
+    HintStrategy get_hint_strategy(int player) const {
         const auto& info = this->public_info[player];
 
         // Determine if both:
@@ -1000,30 +1062,9 @@ public:
             }
         }
 
-        return (!may_be_all_one_color && !may_be_all_one_number) ? 4 : 3;
-    }
-
-    Hinted get_best_hint_of_options(const Hanabi::Server& server, int hint_player, const SinglePlayerHintSet& hint_option_set) const {
-        const auto& view = this->last_view;
-
-        assert(!hint_option_set.empty());
-
-        if (hint_option_set.size() == 1) {
-            return *hint_option_set.begin();
-        }
-
-        // using hint goodness barely helps
-        const auto& hand = server.handOfPlayer(hint_player);
-        double best_goodness = -1;
-        Hinted best_hint = Hinted::Dummy();
-        this->for_each_hint_by_goodness(hand, hint_option_set, hint_player, view, [&](const auto& hinted, double goodness) {
-            if (goodness > best_goodness) {
-                best_goodness = goodness;
-                best_hint = hinted;
-            }
-        });
-        assert(best_goodness >= 0);
-        return best_hint;
+        return (!may_be_all_one_color && !may_be_all_one_number) ?
+            HintStrategy::Make4(this->public_info[player], this->last_view) :
+            HintStrategy::Make3(this->public_info[player], this->last_view);
     }
 
     void get_hint(Hanabi::Server& server) const {
@@ -1042,125 +1083,101 @@ public:
         // TODO: make it so space of hints is larger when there is
         // knowledge about the cards?
 
-        int info_per_player[MAXPLAYERS];
+        fixed_capacity_vector<HintStrategy, MAXPLAYERS> strategies;
         int total_info = 0;
         for (int i = 0; i < numPlayers - 1; ++i) {
             int player = (this->me + 1 + i) % numPlayers;
-            int x = this->get_info_per_player(player);
-            info_per_player[i] = x;
-            total_info += x;
+            strategies.emplace_back(this->get_hint_strategy(player));
+            total_info += strategies.back().get_count();
         }
         auto hint_info = this->get_hint_sum_info(total_info, view);
 
         int hint_type = hint_info.value;
         int player_amt = 0;
-        while (hint_type >= info_per_player[player_amt]) {
-            hint_type -= info_per_player[player_amt];
+        while (hint_type >= strategies[player_amt].get_count()) {
+            hint_type -= strategies[player_amt].get_count();
             player_amt += 1;
         }
-        int hint_info_we_can_give_to_this_player = info_per_player[player_amt];
 
         int hint_player = (this->me + 1 + player_amt) % numPlayers;
         assert(hint_player != this->me);
 
-        const auto& hand = view.get_hand(hint_player);
-        int card_index = this->get_index_for_hint(this->public_info[hint_player], view);
-        const auto& hint_card = hand[card_index];
+        Hinted best_hint = Hinted::Dummy();
+        double best_goodness = -1;
 
-        Hinted hinted = (hint_info_we_can_give_to_this_player == 3) ? (
-            (hint_type == 0) ? Hinted::WithValue(hint_card.value) :
-            (hint_type == 1) ? Hinted::WithColor(hint_card.color) :
-            (hint_type == 2) ? [&]() -> Hinted {
-                // NOTE: this doesn't do that much better than just hinting
-                // the first thing that doesn't match the hint_card
-                SinglePlayerHintSet hint_option_set;
-                for (auto&& card : hand) {
-                    if (card.color != hint_card.color) hint_option_set.insert(Hinted::WithColor(card.color));
-                    if (card.value != hint_card.value) hint_option_set.insert(Hinted::WithValue(card.value));
-                }
-                return this->get_best_hint_of_options(server, hint_player, hint_option_set);
-            }() : []() -> Hinted {
-                assert(!"Invalid hint type"); __builtin_unreachable();
-            }()
-        ) : (
-            (hint_type == 0) ? Hinted::WithValue(hint_card.value) :
-            (hint_type == 1) ? Hinted::WithColor(hint_card.color) :
-            (hint_type == 2) ? [&]() -> Hinted {
-                // Any value hint for a card other than the first
-                SinglePlayerHintSet hint_option_set;
-                for (auto&& card : hand) {
-                    if (card.value != hint_card.value) hint_option_set.insert(Hinted::WithValue(card.value));
-                }
-                return this->get_best_hint_of_options(server, hint_player, hint_option_set);
-            }() :
-            (hint_type == 3) ? [&]() -> Hinted {
-                    // Any color hint for a card other than the first
-                SinglePlayerHintSet hint_option_set;
-                for (auto&& card : hand) {
-                    if (card.color != hint_card.color) hint_option_set.insert(Hinted::WithColor(card.color));
-                }
-                return this->get_best_hint_of_options(server, hint_player, hint_option_set);
-            }() : []() -> Hinted {
-                assert(!"Invalid hint type"); __builtin_unreachable();
-            }()
-        );
+        if (true) {
+            // get post-hint hand_info
+            const auto& hand = server.handOfPlayer(hint_player);
+            auto hand_info = this->public_info[hint_player];
+            int total_info  = 3 * (view.num_players - 1);
+            auto questions = this->get_questions(total_info, view, hand_info);
+            for (const auto& question : questions) {
+                auto answer = question.answer(hand, view);
+                question.acknowledge_answer(answer, hand_info, view);
+            }
 
-        if (hinted.kind == Hinted::COLOR) {
-            return server.pleaseGiveColorHint(hint_player, hinted.color);
+            strategies[player_amt].encode_hint(view, hint_player, hint_type, [&](Hinted hinted) {
+                // How good is it to give this hint to the player?
+                auto hypothetical_hand_info = hand_info;
+                double goodness = 1.0;
+                for (int i=0; i < (int)hand_info.size(); ++i) {
+                    auto& card_table = hypothetical_hand_info[i];
+                    auto card = hand[i];
+                    if (card_table.probability_is_dead(view) == 1.0) {
+                        continue;
+                    }
+                    if (card_table.is_determined()) {
+                        continue;
+                    }
+                    int old_weight = card_table.total_weight();
+                    if (hinted.kind == Hinted::COLOR) {
+                        card_table.mark_color(hinted.color, hinted.color == card.color);
+                    } else if (hinted.kind == Hinted::VALUE) {
+                        card_table.mark_value(hinted.value, hinted.value == card.value);
+                    } else {
+                        assert(false);
+                    }
+                    int new_weight = card_table.total_weight();
+                    assert(new_weight <= old_weight);
+                    double bonus = (
+                        card_table.is_determined() ? 2 :
+                        card_table.probability_is_dead(view) == 1.0 ? 2 :
+                        1
+                    );
+                    goodness *= bonus * double(old_weight) / new_weight;
+                }
+                if (goodness > best_goodness) {
+                    best_goodness = goodness;
+                    best_hint = hinted;
+                }
+            });
+        }
+
+        if (best_hint.kind == Hinted::COLOR) {
+            return server.pleaseGiveColorHint(hint_player, best_hint.color);
         } else {
-            return server.pleaseGiveValueHint(hint_player, hinted.value);
+            return server.pleaseGiveValueHint(hint_player, best_hint.value);
         }
     }
 
     void infer_from_hint(const Hint& hint, int hinter, CardIndices card_indices, const OwnedGameView& view) {
-        int info_per_player[MAXPLAYERS];
+        fixed_capacity_vector<HintStrategy, MAXPLAYERS-1> strategies;
         int total_info = 0;
         for (int i = 0; i < numPlayers - 1; ++i) {
             int player = (hinter + 1 + i) % numPlayers;
-            int x = this->get_info_per_player(player);
-            info_per_player[i] = x;
-            total_info += x;
+            strategies.emplace_back(this->get_hint_strategy(player));
+            total_info += strategies.back().get_count();
         }
 
         int player_amt = (numPlayers + hint.to - hinter - 1) % numPlayers;
 
         int amt_from_prev_players = 0;
         for (int i=0; i < player_amt; ++i) {
-            amt_from_prev_players += info_per_player[i];
+            amt_from_prev_players += strategies[i].get_count();
         }
-        int hint_info_we_can_give_to_this_player = info_per_player[player_amt];
-
-        int card_index = this->get_index_for_hint(this->public_info[hint.to], this->last_view);
-        int hint_type;
-        if (hint_info_we_can_give_to_this_player == 3) {
-            if (card_indices.contains(card_index)) {
-                if (hint.kind == Hinted::VALUE) {
-                    hint_type = 0;
-                } else {
-                    hint_type = 1;
-                }
-            } else {
-                hint_type = 2;
-            }
-        } else {
-            if (card_indices.contains(card_index)) {
-                if (hint.kind == Hinted::VALUE) {
-                    hint_type = 0;
-                } else {
-                    hint_type = 1;
-                }
-            } else {
-                if (hint.kind == Hinted::VALUE) {
-                    hint_type = 2;
-                } else {
-                    hint_type = 3;
-                }
-            }
-        }
+        int hint_type = strategies[player_amt].decode_hint(hint, card_indices);
         int hint_value = amt_from_prev_players + hint_type;
-
         ModulusInformation mod_info(total_info, hint_value);
-
         this->update_from_hint_sum(mod_info, view);
     }
 
