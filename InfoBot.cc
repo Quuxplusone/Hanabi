@@ -98,6 +98,7 @@ struct Hinted {
     }
     static Hinted WithColor(Color k) { return Hinted(COLOR, int(k)); }
     static Hinted WithValue(Value v) { return Hinted(VALUE, int(v)); }
+    static Hinted Dummy() { return Hinted(COLOR, 0); }
     Kind kind;
     Color color;
     Value value;
@@ -422,6 +423,7 @@ public:
 };
 
 using HandInfo = fixed_capacity_vector<CardPossibilityTable, MAXHANDSIZE>;
+using SinglePlayerHintSet = fixed_capacity_set<Hinted, 2*MAXHANDSIZE>;
 
 struct ModulusInformation {
     int modulus;
@@ -927,24 +929,21 @@ public:
     }
 
     // how good is it to give each of these hints to this player?
-    fixed_capacity_vector<std::pair<double, Hinted>, 2*MAXHANDSIZE>
-    hint_goodness_for_each(
-        const Hanabi::Server& server, const fixed_capacity_set<Hinted, 2*MAXHANDSIZE>& hint_option_set,
-        int hint_player, const GameView& view) const
+    template<class F>
+    void for_each_hint_by_goodness(
+        const std::vector<Card>& hand, const SinglePlayerHintSet& hint_option_set,
+        int hint_player, const GameView& view, const F& fn) const
     {
-        fixed_capacity_vector<std::pair<double, Hinted>, 2*MAXHANDSIZE> result;
-        auto hand = server.handOfPlayer(hint_player);
-
         // get post-hint hand_info
         auto hand_info = this->public_info[hint_player];
         int total_info  = 3 * (view.num_players - 1);
         auto questions = this->get_questions(total_info, view, hand_info);
-        for (auto&& question : questions) {
+        for (const auto& question : questions) {
             auto answer = question.answer(hand, view);
             question.acknowledge_answer(answer, hand_info, view);
         }
 
-        for (auto&& hinted : hint_option_set) {
+        for (const auto& hinted : hint_option_set) {
             auto hypothetical_hand_info = hand_info;
             double goodness = 1.0;
             for (int i=0; i < (int)hand_info.size(); ++i) {
@@ -973,9 +972,8 @@ public:
                 );
                 goodness *= bonus * double(old_weight) / new_weight;
             }
-            result.emplace_back(goodness, hinted);
+            fn(hinted, goodness);
         }
-        return result;
     }
 
     // Returns the number of ways to hint the player.
@@ -1005,20 +1003,27 @@ public:
         return (!may_be_all_one_color && !may_be_all_one_number) ? 4 : 3;
     }
 
-    Hinted get_best_hint_of_options(const Hanabi::Server& server, int hint_player, const fixed_capacity_set<Hinted, 2*MAXHANDSIZE>& hint_option_set) const {
+    Hinted get_best_hint_of_options(const Hanabi::Server& server, int hint_player, const SinglePlayerHintSet& hint_option_set) const {
         const auto& view = this->last_view;
 
         assert(!hint_option_set.empty());
 
+        if (hint_option_set.size() == 1) {
+            return *hint_option_set.begin();
+        }
+
         // using hint goodness barely helps
-        auto hint_options =
-            this->hint_goodness_for_each(server, hint_option_set, hint_player, view);
-
-        std::sort(hint_options.begin(), hint_options.end(), [](const auto& h1, const auto& h2) {
-            return h1.first > h2.first;
+        const auto& hand = server.handOfPlayer(hint_player);
+        double best_goodness = -1;
+        Hinted best_hint = Hinted::Dummy();
+        this->for_each_hint_by_goodness(hand, hint_option_set, hint_player, view, [&](const auto& hinted, double goodness) {
+            if (goodness > best_goodness) {
+                best_goodness = goodness;
+                best_hint = hinted;
+            }
         });
-
-        return hint_options[0].second;
+        assert(best_goodness >= 0);
+        return best_hint;
     }
 
     void get_hint(Hanabi::Server& server) const {
@@ -1068,7 +1073,7 @@ public:
             (hint_type == 2) ? [&]() -> Hinted {
                 // NOTE: this doesn't do that much better than just hinting
                 // the first thing that doesn't match the hint_card
-                fixed_capacity_set<Hinted, 2*MAXHANDSIZE> hint_option_set;
+                SinglePlayerHintSet hint_option_set;
                 for (auto&& card : hand) {
                     if (card.color != hint_card.color) hint_option_set.insert(Hinted::WithColor(card.color));
                     if (card.value != hint_card.value) hint_option_set.insert(Hinted::WithValue(card.value));
@@ -1082,7 +1087,7 @@ public:
             (hint_type == 1) ? Hinted::WithColor(hint_card.color) :
             (hint_type == 2) ? [&]() -> Hinted {
                 // Any value hint for a card other than the first
-                fixed_capacity_set<Hinted, 2*MAXHANDSIZE> hint_option_set;
+                SinglePlayerHintSet hint_option_set;
                 for (auto&& card : hand) {
                     if (card.value != hint_card.value) hint_option_set.insert(Hinted::WithValue(card.value));
                 }
@@ -1090,7 +1095,7 @@ public:
             }() :
             (hint_type == 3) ? [&]() -> Hinted {
                     // Any color hint for a card other than the first
-                fixed_capacity_set<Hinted, 2*MAXHANDSIZE> hint_option_set;
+                SinglePlayerHintSet hint_option_set;
                 for (auto&& card : hand) {
                     if (card.color != hint_card.color) hint_option_set.insert(Hinted::WithColor(card.color));
                 }
