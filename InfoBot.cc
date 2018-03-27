@@ -760,18 +760,130 @@ public:
     }
 };
 
+class HintStrategySetPacking {
+    int count_;
+    int color_to_int_[Hanabi::NUMCOLORS];
+    int value_to_int_[5+1];
+public:
+    explicit HintStrategySetPacking(const HandInfo& info) {
+        // Make a matrix with info.size() rows and NUMCOLORS columns.
+        // Set each cell (r,c) to 1 if the r'th card could be of color c.
+        // Find the max-cardinality set of disjoint rows; this is the
+        // NP-complete "set-cover" problem, so we just do brute force
+        // search over the at-most-32 possible row-sets.
+        // Each row in the max-cardinality set corresponds to a
+        // card in the hand where touching that card with a color hint
+        // cannot possibly be confused with any other hint generated
+        // by this algorithm.
+        //
+        int nrows = info.size();
+        unsigned rowsetmax = (1u << nrows);
+        unsigned largest_disjoint_color_rowset = 1;
+        int best_cardinality = 1;
+        for (unsigned rowset = 3; rowset < rowsetmax; ++rowset) {
+            int cardinality_of_rowset = __builtin_popcount(rowset);
+            if (cardinality_of_rowset <= best_cardinality) {
+                // Go on only if this rowset has a chance of being a new "best".
+                continue;
+            }
+            bool rowset_is_disjoint = true;
+            unsigned kmask = 0;
+            for (int i=0; i < nrows; ++i) {
+                if (rowset & (1u << i)) {
+                    info[i].for_each_possibility([&](Card card) {
+                        unsigned km = (1u << int(card.color));
+                        if (kmask & km) {
+                            rowset_is_disjoint = false;
+                        }
+                        kmask |= km;
+                    });
+                }
+            }
+            if (rowset_is_disjoint) {
+                best_cardinality = cardinality_of_rowset;
+                largest_disjoint_color_rowset = rowset;
+            }
+        }
+
+        // Also perform the same operation, but for value hints.
+        //
+        unsigned largest_disjoint_value_rowset = 1;
+        best_cardinality = 1;
+        for (unsigned rowset = 3; rowset < rowsetmax; ++rowset) {
+            int cardinality_of_rowset = __builtin_popcount(rowset);
+            if (cardinality_of_rowset <= best_cardinality) {
+                // Go on only if this rowset has a chance of being a new "best".
+                continue;
+            }
+            bool rowset_is_disjoint = true;
+            unsigned vmask = 0;
+            for (int i=0; i < nrows; ++i) {
+                if (rowset & (1u << i)) {
+                    info[i].for_each_possibility([&](Card card) {
+                        unsigned vm = (1u << int(card.value));
+                        if (vmask & vm) {
+                            rowset_is_disjoint = false;
+                        }
+                        vmask |= vm;
+                    });
+                }
+            }
+            if (rowset_is_disjoint) {
+                best_cardinality = cardinality_of_rowset;
+                largest_disjoint_value_rowset = rowset;
+            }
+        }
+
+        // Now generate our mapping from hints to ints.
+        std::fill(color_to_int_, std::end(color_to_int_), -1);
+        std::fill(value_to_int_, std::end(value_to_int_), -1);
+        count_ = 0;
+        for (int i = 0; i < nrows; ++i) {
+            if (largest_disjoint_color_rowset & (1u << i)) {
+                info[i].for_each_possibility([&](Card card) {
+                    color_to_int_[card.color] = count_;
+                });
+                count_ += 1;
+            }
+            if (largest_disjoint_value_rowset & (1u << i)) {
+                info[i].for_each_possibility([&](Card card) {
+                    value_to_int_[card.value] = count_;
+                });
+                count_ += 1;
+            }
+        }
+    }
+    int get_count() const { return count_; }
+    template<class F>
+    void encode_hint(const OwnedGameView& view, int to, int hint_type, const F& fn) const {
+        assert(0 <= hint_type && hint_type < get_count());
+        for (auto&& card : view.get_hand(to)) {
+            if (color_to_int_[card.color] == hint_type) fn( Hinted::WithColor(card.color) );
+            if (value_to_int_[card.value] == hint_type) fn( Hinted::WithValue(card.value) );
+        }
+    }
+    int decode_hint(Hint hint, CardIndices) const {
+        if (hint.kind == Hinted::COLOR) {
+            return color_to_int_[hint.color];
+        } else {
+            return value_to_int_[hint.value];
+        }
+    }
+};
+
 class InfoBotImpl;
 
 class HintStrategy {
-    enum Kind { HS_HINT3, HS_HINT4 };
+    enum Kind { HS_HINT3, HS_HINT4, HS_SETPACKING };
     Kind kind;
-    std::aligned_union_t<1, ::HintStrategy3, ::HintStrategy4> storage;
+    std::aligned_union_t<1, ::HintStrategy3, ::HintStrategy4, ::HintStrategySetPacking> storage;
 
     template<class F>
     auto visit(const F& fn) const {
         switch (kind) {
             case HS_HINT3: return fn(*(::HintStrategy3*)&this->storage);
             case HS_HINT4: return fn(*(::HintStrategy4*)&this->storage);
+            case HS_SETPACKING: return fn(*(::HintStrategySetPacking*)&this->storage);
             default: assert(false); __builtin_unreachable();
         }
     }
@@ -797,6 +909,12 @@ public:
         HintStrategy result;
         result.kind = HS_HINT4;
         new (&result.storage) ::HintStrategy4(info, view);
+        return result;
+    }
+    static HintStrategy MakeSetPacking(const HandInfo& info) {
+        HintStrategy result;
+        result.kind = HS_SETPACKING;
+        new (&result.storage) ::HintStrategySetPacking(info);
         return result;
     }
 };
@@ -1051,9 +1169,11 @@ public:
     HintStrategy get_hint_strategy(int player) const {
         const auto& info = this->public_info[player];
 
-        // Determine if both:
-        //  - it is public that there are at least two colors
-        //  - it is public that there are at least two numbers
+        HintStrategy setpacking = HintStrategy::MakeSetPacking(info);
+
+        if (setpacking.get_count() > 4) {
+            return setpacking;
+        }
 
         bool may_be_all_one_color = false;
         for (Color k = RED; k <= BLUE; ++k) {
@@ -1071,9 +1191,11 @@ public:
             }
         }
 
-        return (!may_be_all_one_color && !may_be_all_one_number) ?
-            HintStrategy::Make4(this->public_info[player], this->last_view) :
-            HintStrategy::Make3(this->public_info[player], this->last_view);
+        if (!may_be_all_one_color && !may_be_all_one_number) {
+            return HintStrategy::Make4(this->public_info[player], this->last_view);
+        } else {
+            return HintStrategy::Make3(this->public_info[player], this->last_view);
+        }
     }
 
     void get_hint(Hanabi::Server& server) const {
