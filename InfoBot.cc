@@ -303,6 +303,20 @@ public:
         }
         return false;
     }
+    bool must_be_color(Color color) const {
+        bool result = true;
+        this->for_each_possibility([&](Card card) {
+            if (card.color != color) result = false;
+        });
+        return result;
+    }
+    bool must_be_value(Value value) const {
+        bool result = true;
+        this->for_each_possibility([&](Card card) {
+            if (card.value != value) result = false;
+        });
+        return result;
+    }
     void decrement_weight_if_possible(Card card) {
         auto& count = counts_[card.color][card.value];
         if (count) count -= 1;
@@ -760,18 +774,61 @@ public:
     }
 };
 
+class HintStrategyGuaranteed {
+    fixed_capacity_vector<Hinted, 5+Hanabi::NUMCOLORS> guaranteed_hints;
+    fixed_capacity_vector<Hinted, 5+Hanabi::NUMCOLORS> other_hints;
+public:
+    explicit HintStrategyGuaranteed(int kmask, int vmask) {
+        for (Color k = RED; k <= BLUE; ++k) {
+            if (kmask & (1u << int(k))) {
+                guaranteed_hints.emplace_back(Hinted::WithColor(k));
+            } else {
+                other_hints.emplace_back(Hinted::WithColor(k));
+            }
+        }
+        for (int v = 1; v <= 5; ++v) {
+            if (vmask & (1u << int(v))) {
+                guaranteed_hints.emplace_back(Hinted::WithValue(Value(v)));
+            } else {
+                other_hints.emplace_back(Hinted::WithValue(Value(v)));
+            }
+        }
+    }
+    int get_count() const { return guaranteed_hints.size() + 1; }
+    template<class F>
+    void encode_hint(const OwnedGameView&, int, int hint_type, const F& fn) const {
+        assert(0 <= hint_type && hint_type < get_count());
+        if (hint_type != 0) {
+            fn( guaranteed_hints[hint_type - 1] );
+        } else {
+            for (auto&& hinted : other_hints) {
+                fn( hinted );
+            }
+        }
+    }
+    int decode_hint(Hint hint, CardIndices) const {
+        for (int i=0; i < guaranteed_hints.size(); ++i) {
+            if (guaranteed_hints[i] == Hinted(hint)) {
+                return i + 1;
+            }
+        }
+        return 0;
+    }
+};
+
 class InfoBotImpl;
 
 class HintStrategy {
-    enum Kind { HS_HINT3, HS_HINT4 };
+    enum Kind { HS_HINT3, HS_HINT4, HS_GUARANTEED };
     Kind kind;
-    std::aligned_union_t<1, ::HintStrategy3, ::HintStrategy4> storage;
+    std::aligned_union_t<1, ::HintStrategy3, ::HintStrategy4, ::HintStrategyGuaranteed> storage;
 
     template<class F>
     auto visit(const F& fn) const {
         switch (kind) {
             case HS_HINT3: return fn(*(::HintStrategy3*)&this->storage);
             case HS_HINT4: return fn(*(::HintStrategy4*)&this->storage);
+            case HS_GUARANTEED: return fn(*(::HintStrategyGuaranteed*)&this->storage);
             default: assert(false); __builtin_unreachable();
         }
     }
@@ -797,6 +854,12 @@ public:
         HintStrategy result;
         result.kind = HS_HINT4;
         new (&result.storage) ::HintStrategy4(info, view);
+        return result;
+    }
+    static HintStrategy MakeGuaranteed(int known_colors, int known_values) {
+        HintStrategy result;
+        result.kind = HS_GUARANTEED;
+        new (&result.storage) ::HintStrategyGuaranteed(known_colors, known_values);
         return result;
     }
 };
@@ -1051,9 +1114,24 @@ public:
     HintStrategy get_hint_strategy(int player) const {
         const auto& info = this->public_info[player];
 
-        // Determine if both:
-        //  - it is public that there are at least two colors
-        //  - it is public that there are at least two numbers
+        unsigned int known_colors = 0;
+        for (Color k = RED; k <= BLUE; ++k) {
+            if (std::any_of(info.begin(), info.end(), [=](auto&& card) { return card.must_be_color(k); })) {
+                known_colors |= (1u << int(k));
+            }
+        }
+
+        unsigned int known_values = 0;
+        for (int v = 1; v <= 5; ++v) {
+            if (std::any_of(info.begin(), info.end(), [=](auto&& card) { return card.must_be_value(Value(v)); })) {
+                known_values |= (1u << int(v));
+            }
+        }
+        int guaranteed_clues = __builtin_popcount(known_colors) + __builtin_popcount(known_values) + 1;
+
+        if (guaranteed_clues > 4) {
+            return HintStrategy::MakeGuaranteed(known_colors, known_values);
+        }
 
         bool may_be_all_one_color = false;
         for (Color k = RED; k <= BLUE; ++k) {
@@ -1071,9 +1149,11 @@ public:
             }
         }
 
-        return (!may_be_all_one_color && !may_be_all_one_number) ?
-            HintStrategy::Make4(this->public_info[player], this->last_view) :
-            HintStrategy::Make3(this->public_info[player], this->last_view);
+        if (!may_be_all_one_color && !may_be_all_one_number) {
+            return HintStrategy::Make4(this->public_info[player], this->last_view);
+        } else {
+            return HintStrategy::Make3(this->public_info[player], this->last_view);
+        }
     }
 
     void get_hint(Hanabi::Server& server) const {
