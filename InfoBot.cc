@@ -666,14 +666,12 @@ protected:
             return 0;
         }
         // Do something more intelligent?
-        int score = 1;
-        if (!card_table.color_determined()) {
-            score += 1;
-        }
-        if (!card_table.value_determined()) {
-            score += 1;
-        }
-        return score;
+        unsigned score = 0;
+        card_table.for_each_possibility([&](Card card) {
+            score |= (1u << int(card.color));
+            score |= (1u << (int(card.value) + 5));
+        });
+        return __builtin_popcount(score);
     }
 
     static int get_index_for_hint(const HandInfo& info, const GameView& view) {
