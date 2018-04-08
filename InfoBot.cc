@@ -3,7 +3,6 @@
 #include "InfoBot.h"
 
 #include <cassert>
-#include <functional>
 #include <memory>
 #include <vector>
 
@@ -657,15 +656,7 @@ struct AugmentedCardPossibilities {
     }
 };
 
-using HintStrategyCallback = std::function<void(Hinted)>;
-
 class HintStrategyImpl {
-public:
-    virtual int get_count() const = 0;
-    virtual void encode_hint(const OwnedGameView& view, int to, int hint_type, const HintStrategyCallback& fn) const = 0;
-    virtual int decode_hint(Hint hint, CardIndices card_indices) const = 0;
-    virtual ~HintStrategyImpl() = default;
-
 protected:
     static int get_hint_index_score(const CardPossibilityTable& card_table, const GameView& view) {
         if (card_table.probability_is_dead(view) == 1.0) {
@@ -700,8 +691,9 @@ public:
     explicit HintStrategy3(const HandInfo& info, const GameView& view) {
         card_index = get_index_for_hint(info, view);
     }
-    int get_count() const override { return 3; }
-    void encode_hint(const OwnedGameView& view, int to, int hint_type, const HintStrategyCallback& fn) const override {
+    int get_count() const { return 3; }
+    template<class F>
+    void encode_hint(const OwnedGameView& view, int to, int hint_type, const F& fn) const {
         const auto& hand = view.get_hand(to);
         const auto& hint_card = hand[card_index];
         if (hint_type == 0) {
@@ -715,7 +707,7 @@ public:
             }
         }
     }
-    int decode_hint(Hint hint, CardIndices card_indices) const override {
+    int decode_hint(Hint hint, CardIndices card_indices) const {
         if (card_indices.contains(card_index)) {
             if (hint.kind == Hinted::VALUE) {
                 return 0;
@@ -734,8 +726,9 @@ public:
     explicit HintStrategy4(const HandInfo& info, const GameView& view) {
         card_index = get_index_for_hint(info, view);
     }
-    int get_count() const override { return 4; }
-    void encode_hint(const OwnedGameView& view, int to, int hint_type, const HintStrategyCallback& fn) const override {
+    int get_count() const { return 4; }
+    template<class F>
+    void encode_hint(const OwnedGameView& view, int to, int hint_type, const F& fn) const {
         const auto& hand = view.get_hand(to);
         const auto& hint_card = hand[card_index];
         if (hint_type == 0) {
@@ -752,7 +745,7 @@ public:
             }
         }
     }
-    int decode_hint(Hint hint, CardIndices card_indices) const override {
+    int decode_hint(Hint hint, CardIndices card_indices) const {
         if (card_indices.contains(card_index)) {
             if (hint.kind == Hinted::VALUE) {
                 return 0;
@@ -772,22 +765,40 @@ public:
 class InfoBotImpl;
 
 class HintStrategy {
-    std::unique_ptr<HintStrategyImpl> p;
-    HintStrategy() = default;
+    enum Kind { HS_HINT3, HS_HINT4 };
+    Kind kind;
+    std::aligned_union_t<1, ::HintStrategy3, ::HintStrategy4> storage;
+
+    template<class F>
+    auto visit(const F& fn) const {
+        switch (kind) {
+            case HS_HINT3: return fn(*(::HintStrategy3*)&this->storage);
+            case HS_HINT4: return fn(*(::HintStrategy4*)&this->storage);
+            default: assert(false); __builtin_unreachable();
+        }
+    }
 public:
-    int get_count() const { return p->get_count(); }
-    void encode_hint(const OwnedGameView& view, int to, int hint_type, const HintStrategyCallback& fn) const { p->encode_hint(view, to, hint_type, fn); }
-    int decode_hint(Hint hint, CardIndices card_indices) const { return p->decode_hint(hint, card_indices); }
+    int get_count() const {
+        return visit([&](auto&& impl){ return impl.get_count(); });
+    }
+    template<class F>
+    void encode_hint(const OwnedGameView& view, int to, int hint_type, const F& fn) const {
+        return visit([&](auto&& impl){ return impl.encode_hint(view, to, hint_type, fn); });
+    }
+    int decode_hint(Hint hint, CardIndices card_indices) const {
+        return visit([&](auto&& impl) { return impl.decode_hint(hint, card_indices); });
+    }
 
     static HintStrategy Make3(const HandInfo& info, const GameView& view) {
         HintStrategy result;
-        result.p = std::make_unique<HintStrategy3>(info, view);
+        result.kind = HS_HINT3;
+        new (&result.storage) ::HintStrategy3(info, view);
         return result;
     }
-
     static HintStrategy Make4(const HandInfo& info, const GameView& view) {
         HintStrategy result;
-        result.p = std::make_unique<HintStrategy4>(info, view);
+        result.kind = HS_HINT4;
+        new (&result.storage) ::HintStrategy4(info, view);
         return result;
     }
 };
