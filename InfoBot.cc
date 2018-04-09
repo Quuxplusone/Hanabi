@@ -908,6 +908,23 @@ public:
                 count_ += 1;
             }
         }
+
+        // Some colors and values might not be touched by any of the rows
+        // in our largest disjoint rowset. Permit those hints to be given,
+        // since their "overt" information might be useful to the hintee.
+        int cur_block = 0;
+        for (Color k = RED; k <= BLUE; ++k) {
+            if (color_to_int_[k] == -1) {
+                color_to_int_[k] = cur_block;
+                cur_block = (cur_block + 1) % count_;
+            }
+        }
+        for (int v = 1; v <= 5; ++v) {
+            if (value_to_int_[v] == -1) {
+                value_to_int_[v] = cur_block;
+                cur_block = (cur_block + 1) % count_;
+            }
+        }
     }
     int get_count() const { return count_; }
     template<class F>
