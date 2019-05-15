@@ -2,6 +2,7 @@
 #include "Hanabi.h"
 #include "InfoBot.h"
 
+#include <algorithm>
 #include <cassert>
 #include <memory>
 #include <vector>
