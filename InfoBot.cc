@@ -5,6 +5,7 @@
 #include <cassert>
 #include <memory>
 #include <vector>
+#include <algorithm>
 
 #define MAXPLAYERS 10  // use statically sized arrays instead of vector in some places
 #define MAXHANDSIZE 5  // use statically sized arrays instead of vector in some places
